@@ -659,6 +659,7 @@ function LoginPage({ setRoute, auth }) {
   const [mode, setMode] = useState('login') // login | signup | forgot
   const [form, setForm] = useState({ identifier: '', password: '', email: '', phone: '', firstName: '', lastName: '', companyName: '' })
   const [loading, setLoading] = useState(false)
+  const [welcome, setWelcome] = useState(null) // { name, isNew }
 
   async function submit(e) {
     e.preventDefault()
@@ -666,20 +667,21 @@ function LoginPage({ setRoute, auth }) {
     try {
       if (mode === 'login') {
         const u = await auth.login(form.identifier, form.password)
-        toast.success(`Welcome back, ${u.firstName || 'user'}`)
-        setRoute(u.role === 'admin' ? 'admin' : 'portal')
+        setWelcome({ name: u.firstName || 'there', isNew: false, role: u.role })
       } else if (mode === 'signup') {
         if (!form.email || !form.phone) { toast.error('Email and phone are both required'); setLoading(false); return }
         const u = await auth.signup(form)
-        toast.success(`Account created, ${u.firstName}`)
-        setRoute('portal')
+        setWelcome({ name: u.firstName, isNew: true, role: u.role })
       } else {
-        const r = await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: form.identifier }) })
-        await r.json()
-        toast.success('If an account exists, reset instructions were sent (mocked email).')
+        await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: form.identifier }) })
+        toast.success('If an account exists, reset instructions were sent (mocked email).', { duration: 5000 })
         setMode('login')
       }
     } catch (e) { toast.error(e.message) } finally { setLoading(false) }
+  }
+
+  function continueAfterWelcome() {
+    setRoute(welcome.role === 'admin' ? 'admin' : 'portal')
   }
 
   return (
@@ -757,6 +759,31 @@ function LoginPage({ setRoute, auth }) {
         </Card>
         <div className="text-center text-xs text-slate-500 mt-6">Protected by password hashing (scrypt). Your credentials are never stored in plain text.</div>
       </motion.div>
+
+      {/* Welcome / success modal */}
+      <Dialog open={!!welcome} onOpenChange={o => !o && setWelcome(null)}>
+        <DialogContent className="max-w-sm text-center">
+          <DialogHeader>
+            <div className="mx-auto mb-2">
+              <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+                className="inline-flex bg-emerald-100 text-emerald-600 rounded-full p-4">
+                <CheckCircle2 className="h-12 w-12" />
+              </motion.div>
+            </div>
+            <DialogTitle className="text-center text-2xl">
+              {welcome?.isNew ? `Welcome to VEW, ${welcome?.name}!` : `Welcome back, ${welcome?.name}!`}
+            </DialogTitle>
+            <CardDescription className="text-center pt-2">
+              {welcome?.isNew
+                ? "Your account is ready. You can now submit RFQs and track every stage of production live."
+                : welcome?.role === 'admin' ? 'Signed in as administrator.' : "You're signed in. Continue to your portal to see all your RFQs and orders."}
+            </CardDescription>
+          </DialogHeader>
+          <Button onClick={continueAfterWelcome} className="w-full bg-slate-900 hover:bg-slate-800 rounded-full h-11 mt-2">
+            {welcome?.role === 'admin' ? 'Go to Admin Dashboard' : 'Continue to My Portal'} <ArrowRight className="h-4 w-4 ml-1" />
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1189,9 +1216,9 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
 
         {/* PRODUCTION TRACKER */}
         <div className="bg-slate-50 rounded-xl p-5 mb-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="font-semibold text-slate-900">Production Progress</div>
-            {asAdmin && <Badge variant="outline">Admin can update stages below</Badge>}
+            {asAdmin && <StageManager rfqId={current.id} stages={current.productionStages || []} auth={auth} onChange={refresh} />}
           </div>
           <ProductionTracker stages={current.productionStages} canEdit={asAdmin} onUpdate={updateStage} />
         </div>
@@ -1288,6 +1315,71 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
         <DialogFooter><Button variant="outline" onClick={onClose} className="rounded-full">Close</Button></DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// ============== STAGE MANAGER (admin) ==============
+function StageManager({ rfqId, stages, auth, onChange }) {
+  const [open, setOpen] = useState(false)
+  const [list, setList] = useState(stages)
+  const [newName, setNewName] = useState('')
+  useEffect(() => { setList(stages) }, [stages])
+
+  async function addStage() {
+    if (!newName.trim()) return
+    const r = await api(auth.token).post(`/api/rfq/${rfqId}/stages`, { name: newName.trim() })
+    if (r.success) { toast.success(`Added "${newName}"`); setNewName(''); onChange() }
+    else toast.error(r.error)
+  }
+  async function renameStage(sid, name) {
+    const r = await api(auth.token).patch(`/api/rfq/${rfqId}/stages/${sid}`, { name })
+    if (r.success) { toast.success('Renamed'); onChange() }
+  }
+  async function deleteStage(sid) {
+    if (!confirm('Delete this stage?')) return
+    const r = await fetch(`/api/rfq/${rfqId}/stages/${sid}`, { method: 'DELETE', headers: { Authorization: `Bearer ${auth.token}` } }).then(r => r.json())
+    if (r.success) { toast.success('Stage removed'); onChange() }
+  }
+  async function move(i, dir) {
+    const j = i + dir
+    if (j < 0 || j >= list.length) return
+    const order = [...list]
+    ;[order[i], order[j]] = [order[j], order[i]]
+    setList(order.map((s, k) => ({ ...s, sequence: k + 1 })))
+    const r = await fetch(`/api/rfq/${rfqId}/stages/reorder`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` }, body: JSON.stringify({ order: order.map(s => s.id) }) }).then(r => r.json())
+    if (r.success) onChange()
+  }
+
+  return (
+    <>
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="rounded-full"><Pencil className="h-3 w-3 mr-1" /> Manage stages</Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Manage Production Stages</DialogTitle>
+            <CardDescription>Add, rename, reorder, or remove stages for this specific RFQ.</CardDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {list.map((s, i) => (
+              <div key={s.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded border">
+                <div className="flex flex-col">
+                  <button onClick={() => move(i, -1)} disabled={i === 0} className="text-slate-400 hover:text-slate-900 disabled:opacity-30 text-xs">▲</button>
+                  <button onClick={() => move(i, 1)} disabled={i === list.length - 1} className="text-slate-400 hover:text-slate-900 disabled:opacity-30 text-xs">▼</button>
+                </div>
+                <div className="text-xs text-slate-500 w-6">{s.sequence}.</div>
+                <Input defaultValue={s.name} onBlur={e => e.target.value !== s.name && renameStage(s.id, e.target.value)} className="flex-1 h-8" />
+                <Badge className={s.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : s.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'}>{s.status.replace('_', ' ')}</Badge>
+                <Button size="sm" variant="ghost" onClick={() => deleteStage(s.id)} className="h-8 w-8 p-0"><Trash2 className="h-4 w-4 text-red-500" /></Button>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 pt-3 border-t">
+            <Input placeholder="New stage name (e.g. Deburring)" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addStage()} />
+            <Button onClick={addStage} className="bg-slate-900 hover:bg-slate-800 rounded-full"><UserPlus className="h-4 w-4 mr-1" /> Add</Button>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)} className="rounded-full">Done</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -1437,6 +1529,7 @@ function App() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [reorderPrefill, setReorderPrefill] = useState(null)
   const [cms, setCms] = useState(null)
+  const [signoutOpen, setSignoutOpen] = useState(false)
 
   const loadCms = async () => { const d = await fetch('/api/cms').then(r => r.json()); setCms(d.cms) }
   useEffect(() => { loadCms() }, [])
@@ -1448,6 +1541,14 @@ function App() {
     window.addEventListener('exitAdmin', h)
     return () => window.removeEventListener('exitAdmin', h)
   }, [])
+
+  function confirmSignout() {
+    const name = auth.user?.firstName || 'user'
+    auth.logout()
+    setSignoutOpen(false)
+    setRoute('home')
+    toast.success(`You've been signed out, ${name}. See you soon!`, { duration: 4000 })
+  }
 
   // Route guards
   const goRoute = (r) => {
@@ -1474,10 +1575,26 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Nav route={route.split(':')[0]} setRoute={goRoute} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={auth.user} onLogout={() => { auth.logout(); setRoute('home'); toast.success('Signed out') }} />
+      <Nav route={route.split(':')[0]} setRoute={goRoute} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={auth.user} onLogout={() => setSignoutOpen(true)} />
       <ImpersonationBanner user={auth.user} onExit={() => { auth.exitImpersonation(); setRoute('admin'); toast.success('Exited override — back to admin') }} />
       <main className="flex-1">{content}</main>
       <Footer setRoute={goRoute} cms={cms} />
+
+      <Dialog open={signoutOpen} onOpenChange={setSignoutOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <div className="mx-auto mb-2"><div className="inline-flex bg-slate-100 rounded-full p-3"><LogOut className="h-8 w-8 text-slate-700" /></div></div>
+            <DialogTitle className="text-center">Sign out of your account?</DialogTitle>
+            <CardDescription className="text-center pt-2">
+              You'll need to sign in again to view your RFQs and production tracking.
+            </CardDescription>
+          </DialogHeader>
+          <div className="flex gap-2 mt-3">
+            <Button variant="outline" onClick={() => setSignoutOpen(false)} className="flex-1 rounded-full">Stay signed in</Button>
+            <Button onClick={confirmSignout} className="flex-1 bg-slate-900 hover:bg-slate-800 rounded-full">Sign Out</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

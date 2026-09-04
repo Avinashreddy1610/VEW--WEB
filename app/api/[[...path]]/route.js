@@ -319,6 +319,68 @@ async function handler(request, ctx) {
       return json({ success: true, rfq: updated })
     }
 
+    // Add / Update / Delete production stages (admin only)
+    if (route.match(/^rfq\/[^/]+\/stages$/) && method === 'POST') {
+      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      const id = path[1]
+      const b = await request.json()
+      if (!b.name) return json({ error: 'Stage name required' }, 400)
+      const rfq = await db.collection('rfqs').findOne({ id })
+      if (!rfq) return json({ error: 'Not found' }, 404)
+      const stages = rfq.productionStages || []
+      const newStage = {
+        id: uuidv4(), name: b.name, sequence: (b.afterSequence != null ? b.afterSequence + 0.5 : stages.length + 1),
+        status: 'NOT_STARTED', startedAt: null, completedAt: null, notes: b.notes || '',
+      }
+      stages.push(newStage)
+      // Re-index sequences to integers 1..N
+      stages.sort((a, b) => a.sequence - b.sequence).forEach((s, i) => s.sequence = i + 1)
+      await db.collection('rfqs').updateOne({ id }, { $set: { productionStages: stages, updatedAt: new Date().toISOString() } })
+      return json({ success: true, stages })
+    }
+
+    if (route.match(/^rfq\/[^/]+\/stages\/[^/]+$/) && method === 'PATCH') {
+      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      const id = path[1], sid = path[3]
+      const b = await request.json()
+      const rfq = await db.collection('rfqs').findOne({ id })
+      if (!rfq) return json({ error: 'Not found' }, 404)
+      const stages = rfq.productionStages || []
+      const s = stages.find(x => x.id === sid)
+      if (!s) return json({ error: 'Stage not found' }, 404)
+      if (b.name !== undefined) s.name = b.name
+      if (b.notes !== undefined) s.notes = b.notes
+      await db.collection('rfqs').updateOne({ id }, { $set: { productionStages: stages, updatedAt: new Date().toISOString() } })
+      return json({ success: true })
+    }
+
+    if (route.match(/^rfq\/[^/]+\/stages\/[^/]+$/) && method === 'DELETE') {
+      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      const id = path[1], sid = path[3]
+      const rfq = await db.collection('rfqs').findOne({ id })
+      if (!rfq) return json({ error: 'Not found' }, 404)
+      const stages = (rfq.productionStages || []).filter(s => s.id !== sid)
+      stages.forEach((s, i) => s.sequence = i + 1)
+      await db.collection('rfqs').updateOne({ id }, { $set: { productionStages: stages, updatedAt: new Date().toISOString() } })
+      return json({ success: true })
+    }
+
+    if (route.match(/^rfq\/[^/]+\/stages\/reorder$/) && method === 'PUT') {
+      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      const id = path[1]
+      const b = await request.json()  // { order: [stageId, stageId, ...] }
+      const rfq = await db.collection('rfqs').findOne({ id })
+      if (!rfq) return json({ error: 'Not found' }, 404)
+      const stages = rfq.productionStages || []
+      const stageMap = Object.fromEntries(stages.map(s => [s.id, s]))
+      const reordered = (b.order || []).map((sid, i) => stageMap[sid] && ({ ...stageMap[sid], sequence: i + 1 })).filter(Boolean)
+      // Include any stages not in the reorder list at the end
+      const missing = stages.filter(s => !b.order?.includes(s.id))
+      const final = [...reordered, ...missing].map((s, i) => ({ ...s, sequence: i + 1 }))
+      await db.collection('rfqs').updateOne({ id }, { $set: { productionStages: final, updatedAt: new Date().toISOString() } })
+      return json({ success: true })
+    }
+
     // Production stage update (admin only)
     if (route.match(/^rfq\/[^/]+\/stage$/) && method === 'PATCH') {
       if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
