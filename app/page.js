@@ -128,8 +128,8 @@ function useAuth() {
       .then(r => r.json()).then(d => { if (d.user) setUser(d.user); else localStorage.removeItem('vew_token') })
       .finally(() => setLoading(false))
   }, [])
-  const login = async (email, password) => {
-    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) })
+  const login = async (identifier, password) => {
+    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, password }) })
     const d = await r.json()
     if (!r.ok) throw new Error(d.error)
     localStorage.setItem('vew_token', d.token); setToken(d.token); setUser(d.user); return d.user
@@ -140,8 +140,25 @@ function useAuth() {
     if (!r.ok) throw new Error(d.error)
     localStorage.setItem('vew_token', d.token); setToken(d.token); setUser(d.user); return d.user
   }
-  const logout = () => { localStorage.removeItem('vew_token'); setToken(null); setUser(null) }
-  return { user, token, loading, login, signup, logout }
+  const impersonate = async (userId) => {
+    const r = await fetch(`/api/admin/users/${userId}/impersonate`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } })
+    const d = await r.json()
+    if (!r.ok) throw new Error(d.error)
+    // Stash original admin token for restore
+    localStorage.setItem('vew_admin_token', token)
+    localStorage.setItem('vew_token', d.token); setToken(d.token); setUser({ ...d.user, _impersonatedBy: 'admin' }); return d.user
+  }
+  const exitImpersonation = () => {
+    const adminToken = localStorage.getItem('vew_admin_token')
+    if (!adminToken) return
+    localStorage.setItem('vew_token', adminToken)
+    localStorage.removeItem('vew_admin_token')
+    setToken(adminToken)
+    // Re-fetch admin user
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${adminToken}` } }).then(r => r.json()).then(d => setUser(d.user))
+  }
+  const logout = () => { localStorage.removeItem('vew_token'); localStorage.removeItem('vew_admin_token'); setToken(null); setUser(null) }
+  return { user, token, loading, login, signup, logout, impersonate, exitImpersonation }
 }
 
 function api(token) {
@@ -639,51 +656,232 @@ function ContactPage({ cms }) {
 
 // ============== LOGIN / SIGNUP ==============
 function LoginPage({ setRoute, auth }) {
-  const [mode, setMode] = useState('login')
-  const [form, setForm] = useState({ email: '', password: '', firstName: '', lastName: '', companyName: '', phone: '' })
+  const [mode, setMode] = useState('login') // login | signup | forgot
+  const [form, setForm] = useState({ identifier: '', password: '', email: '', phone: '', firstName: '', lastName: '', companyName: '' })
   const [loading, setLoading] = useState(false)
 
   async function submit(e) {
     e.preventDefault()
     setLoading(true)
     try {
-      if (mode === 'login') { const u = await auth.login(form.email, form.password); toast.success(`Welcome back, ${u.firstName || 'user'}`); setRoute(u.role === 'admin' ? 'admin' : 'portal') }
-      else { const u = await auth.signup(form); toast.success(`Account created, ${u.firstName}`); setRoute('portal') }
+      if (mode === 'login') {
+        const u = await auth.login(form.identifier, form.password)
+        toast.success(`Welcome back, ${u.firstName || 'user'}`)
+        setRoute(u.role === 'admin' ? 'admin' : 'portal')
+      } else if (mode === 'signup') {
+        if (!form.email || !form.phone) { toast.error('Email and phone are both required'); setLoading(false); return }
+        const u = await auth.signup(form)
+        toast.success(`Account created, ${u.firstName}`)
+        setRoute('portal')
+      } else {
+        const r = await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: form.identifier }) })
+        await r.json()
+        toast.success('If an account exists, reset instructions were sent (mocked email).')
+        setMode('login')
+      }
     } catch (e) { toast.error(e.message) } finally { setLoading(false) }
   }
+
   return (
-    <div className="container mx-auto px-4 py-20 max-w-md">
-      <FadeIn>
-        <Card className="border-slate-200 shadow-xl">
-          <CardHeader>
-            <CardTitle className="text-2xl">{mode === 'login' ? 'Welcome back' : 'Create your account'}</CardTitle>
-            <CardDescription>{mode === 'login' ? 'Sign in to track your RFQs and orders.' : 'Sign up to submit RFQs and track production in real-time.'}</CardDescription>
+    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-10 bg-gradient-to-br from-slate-50 via-white to-slate-100">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 30, repeat: Infinity, ease: 'linear' }} className="inline-block">
+            <Cog className="h-12 w-12 text-amber-500" strokeWidth={2} />
+          </motion.div>
+          <div className="mt-3 font-bold text-2xl text-slate-900 tracking-tight">Vijaya Engineering Works</div>
+          <div className="text-xs uppercase tracking-widest text-amber-600 mt-1">VEW · Precision Gears</div>
+        </div>
+        <Card className="border-slate-200 shadow-2xl shadow-slate-200/60 overflow-hidden">
+          <CardHeader className="bg-slate-950 text-white pb-8">
+            <CardTitle className="text-2xl tracking-tight">
+              {mode === 'login' ? 'Sign in to your account' : mode === 'signup' ? 'Create your VEW account' : 'Reset your password'}
+            </CardTitle>
+            <CardDescription className="text-slate-400">
+              {mode === 'login' ? 'Track your RFQs and production progress in real-time.' :
+                mode === 'signup' ? 'Get instant quotes and live production tracking.' :
+                'Enter your email or phone to receive reset instructions.'}
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={submit} className="space-y-3">
+          <CardContent className="p-6 -mt-4">
+            <form onSubmit={submit} className="space-y-4 bg-white rounded-lg">
               {mode === 'signup' && <>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>First Name</Label><Input required value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></div>
-                  <div><Label>Last Name</Label><Input required value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></div>
+                  <div><Label className="text-slate-700">First Name *</Label><Input required className="mt-1" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></div>
+                  <div><Label className="text-slate-700">Last Name *</Label><Input required className="mt-1" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></div>
                 </div>
-                <div><Label>Company</Label><Input value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} /></div>
-                <div><Label>Phone</Label><Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
+                <div><Label className="text-slate-700">Company Name</Label><Input className="mt-1" value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} /></div>
+                <div><Label className="text-slate-700">Email *</Label>
+                  <div className="relative mt-1"><Mail className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                    <Input required type="email" className="pl-9" placeholder="you@company.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+                  </div>
+                </div>
+                <div><Label className="text-slate-700">Phone *</Label>
+                  <div className="relative mt-1"><Phone className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                    <Input required type="tel" className="pl-9" placeholder="+91 98765 43210" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+                  </div>
+                  <div className="text-xs text-slate-500 mt-1">You'll be able to sign in with either email or phone.</div>
+                </div>
               </>}
-              <div><Label>Email</Label><Input type="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
-              <div><Label>Password</Label><Input type="password" required value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></div>
-              <Button disabled={loading} type="submit" className="w-full bg-slate-900 hover:bg-slate-800 h-11">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : (mode === 'login' ? 'Sign In' : 'Create Account')}
+              {(mode === 'login' || mode === 'forgot') && (
+                <div><Label className="text-slate-700">Email or Phone</Label>
+                  <div className="relative mt-1"><User className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
+                    <Input required className="pl-9 h-11" placeholder="you@company.com or +91 98765 43210" value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
+                  </div>
+                </div>
+              )}
+              {mode !== 'forgot' && (
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-slate-700">Password{mode === 'signup' && ' *'}</Label>
+                    {mode === 'login' && <button type="button" onClick={() => setMode('forgot')} className="text-xs text-amber-600 font-medium hover:underline">Forgot password?</button>}
+                  </div>
+                  <Input required type="password" className="mt-1 h-11" placeholder={mode === 'signup' ? 'At least 6 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+                </div>
+              )}
+              <Button disabled={loading} type="submit" className="w-full bg-slate-900 hover:bg-slate-800 h-11 rounded-full font-semibold">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : 'Send Reset Instructions'}
               </Button>
             </form>
-            <div className="mt-4 text-center text-sm text-slate-600">
-              {mode === 'login' ? <>New here? <button onClick={() => setMode('signup')} className="text-amber-600 font-semibold">Create an account</button></> : <>Already have an account? <button onClick={() => setMode('login')} className="text-amber-600 font-semibold">Sign in</button></>}
-            </div>
-            <div className="mt-3 text-center text-xs text-slate-500 border-t pt-3">
-              Admin? Sign in with <b>admin@vew.com</b> / <b>admin123</b>
+            <div className="mt-5 pt-5 border-t text-center text-sm text-slate-600 space-y-2">
+              {mode === 'login' && <>
+                <div>New to VEW? <button onClick={() => setMode('signup')} className="text-amber-600 font-semibold">Create an account</button></div>
+                <div className="text-xs text-slate-500 bg-slate-50 rounded-md p-2">
+                  <b>Admin demo:</b> admin@vew.com / admin123
+                </div>
+              </>}
+              {mode === 'signup' && <div>Already have an account? <button onClick={() => setMode('login')} className="text-amber-600 font-semibold">Sign in</button></div>}
+              {mode === 'forgot' && <div><button onClick={() => setMode('login')} className="text-amber-600 font-semibold">← Back to sign in</button></div>}
             </div>
           </CardContent>
         </Card>
-      </FadeIn>
+        <div className="text-center text-xs text-slate-500 mt-6">Protected by password hashing (scrypt). Your credentials are never stored in plain text.</div>
+      </motion.div>
+    </div>
+  )
+}
+
+// ============== IMPERSONATION BANNER ==============
+function ImpersonationBanner({ user, onExit }) {
+  if (!user?._impersonatedBy) return null
+  return (
+    <motion.div initial={{ y: -30 }} animate={{ y: 0 }} className="bg-amber-500 text-slate-900 text-sm py-2 px-4 flex items-center justify-between gap-3 sticky top-16 z-30 border-b border-amber-600">
+      <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> <span className="font-semibold">Admin override</span> · Viewing as {user.firstName} {user.lastName} ({user.email})</div>
+      <Button size="sm" onClick={onExit} className="bg-slate-900 hover:bg-slate-800 text-white h-7 rounded-full text-xs">Exit override</Button>
+    </motion.div>
+  )
+}
+
+// ============== USER MANAGEMENT (Admin) ==============
+function UserManagement({ auth, onImpersonate }) {
+  const [users, setUsers] = useState([])
+  const [query, setQuery] = useState('')
+  const [resetTarget, setResetTarget] = useState(null)
+  const [newPw, setNewPw] = useState('')
+  const load = async () => { const d = await api(auth.token).get(`/api/admin/users?q=${encodeURIComponent(query)}`); setUsers(d.users || []) }
+  useEffect(() => { load() }, [query])
+
+  async function toggle(u) {
+    if (u.role === 'admin') { toast.error("Can't disable admin"); return }
+    await api(auth.token).patch(`/api/admin/users/${u.id}/toggle`, {})
+    toast.success(u.isActive ? 'User disabled' : 'User re-enabled')
+    load()
+  }
+  async function doReset() {
+    if (!newPw || newPw.length < 6) { toast.error('At least 6 characters'); return }
+    const r = await api(auth.token).post(`/api/admin/users/${resetTarget.id}/reset-password`, { password: newPw })
+    if (r.success) { toast.success('Password reset · Email sent (mocked)'); setResetTarget(null); setNewPw('') }
+    else toast.error(r.error)
+  }
+  async function impersonate(u) {
+    if (u.role === 'admin') { toast.error("Can't impersonate another admin"); return }
+    try {
+      await auth.impersonate(u.id)
+      toast.success(`Now viewing as ${u.firstName} ${u.lastName}`)
+      onImpersonate && onImpersonate()
+    } catch (e) { toast.error(e.message) }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-semibold text-slate-900 text-lg">User Management</div>
+          <div className="text-sm text-slate-500">All customer & admin accounts · {users.length} total</div>
+        </div>
+        <div className="relative w-full sm:w-80"><Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
+          <Input className="pl-9" placeholder="Search by name, email, phone, company..." value={query} onChange={e => setQuery(e.target.value)} />
+        </div>
+      </div>
+      <Card><CardContent className="p-0 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
+            <tr>
+              <th className="text-left px-4 py-3">User</th>
+              <th className="text-left px-4 py-3">Contact</th>
+              <th className="text-left px-4 py-3">Role</th>
+              <th className="text-left px-4 py-3">RFQs</th>
+              <th className="text-left px-4 py-3">Status</th>
+              <th className="text-left px-4 py-3">Last Login</th>
+              <th className="text-right px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.id} className="border-t border-slate-100 hover:bg-slate-50/50">
+                <td className="px-4 py-3">
+                  <div className="font-semibold text-slate-900">{u.firstName} {u.lastName}</div>
+                  <div className="text-xs text-slate-500">{u.companyName || '—'}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="text-slate-700">{u.email}</div>
+                  <div className="text-xs text-slate-500">{u.phone || '—'}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <Badge className={u.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'}>{u.role}</Badge>
+                </td>
+                <td className="px-4 py-3 font-semibold text-slate-900">{u.rfqCount}</td>
+                <td className="px-4 py-3">
+                  <Badge className={u.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}>{u.isActive ? 'Active' : 'Disabled'}</Badge>
+                </td>
+                <td className="px-4 py-3 text-slate-600 text-xs">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : 'Never'}</td>
+                <td className="px-4 py-3 text-right">
+                  <div className="inline-flex gap-1">
+                    {u.role !== 'admin' && (
+                      <>
+                        <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => impersonate(u)} title="Sign in as this user">
+                          <ShieldCheck className="h-3 w-3 mr-1" />Override
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => setResetTarget(u)}>
+                          <Pencil className="h-3 w-3 mr-1" />Reset
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
+                          {u.isActive ? 'Disable' : 'Enable'}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!users.length && <tr><td colSpan="7" className="p-10 text-center text-slate-500">No users found.</td></tr>}
+          </tbody>
+        </table>
+      </CardContent></Card>
+      <Dialog open={!!resetTarget} onOpenChange={o => !o && setResetTarget(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Reset password for {resetTarget?.firstName} {resetTarget?.lastName}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-3">
+            <div className="text-sm text-slate-600">A notification email will be sent (mocked).</div>
+            <Label>New Password</Label>
+            <Input type="password" placeholder="At least 6 characters" value={newPw} onChange={e => setNewPw(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setResetTarget(null); setNewPw('') }}>Cancel</Button>
+            <Button onClick={doReset} className="bg-slate-900 hover:bg-slate-800">Reset Password</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1127,7 +1325,7 @@ function AdminDashboard({ auth, cms, reloadCms }) {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="mb-6">
-        <TabsList><TabsTrigger value="rfqs">RFQs</TabsTrigger><TabsTrigger value="cms">Content Editor</TabsTrigger></TabsList>
+        <TabsList><TabsTrigger value="rfqs">RFQs</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="cms">Content Editor</TabsTrigger></TabsList>
         <TabsContent value="rfqs">
           {stats && <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {[
@@ -1179,6 +1377,7 @@ function AdminDashboard({ auth, cms, reloadCms }) {
           </motion.div>
         </TabsContent>
         <TabsContent value="cms"><CmsEditor auth={auth} cms={cms} reloadCms={reloadCms} /></TabsContent>
+        <TabsContent value="users"><UserManagement auth={auth} onImpersonate={() => window.dispatchEvent(new CustomEvent('exitAdmin'))} /></TabsContent>
       </Tabs>
 
       <RfqDetailDialog rfq={selected} onClose={() => setSelected(null)} onUpdated={load} auth={auth} asAdmin cms={cms} />
@@ -1244,6 +1443,12 @@ function App() {
 
   useEffect(() => { window.scrollTo(0, 0) }, [route])
 
+  useEffect(() => {
+    const h = () => setRoute('portal')
+    window.addEventListener('exitAdmin', h)
+    return () => window.removeEventListener('exitAdmin', h)
+  }, [])
+
   // Route guards
   const goRoute = (r) => {
     if ((r === 'portal' || r === 'admin') && !auth.user) { setRoute('login'); return }
@@ -1270,6 +1475,7 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col">
       <Nav route={route.split(':')[0]} setRoute={goRoute} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={auth.user} onLogout={() => { auth.logout(); setRoute('home'); toast.success('Signed out') }} />
+      <ImpersonationBanner user={auth.user} onExit={() => { auth.exitImpersonation(); setRoute('admin'); toast.success('Exited override — back to admin') }} />
       <main className="flex-1">{content}</main>
       <Footer setRoute={goRoute} cms={cms} />
     </div>

@@ -51,6 +51,7 @@ async function getAuthUser(request, db) {
   const u = await db.collection('users').findOne({ id: p.userId })
   if (!u) return null
   const { passwordHash, _id, ...safe } = u
+  if (p.impersonatedBy) safe._impersonatedBy = p.impersonatedByEmail || 'admin'
   return safe
 }
 
@@ -66,6 +67,12 @@ function mockSendEmail({ to, subject, body }) {
 }
 
 // === Seed ===
+function normalizePhone(p) {
+  return (p || '').replace(/\D/g, '')
+}
+function isEmail(s) { return /@/.test(s || '') }
+function isPhone(s) { return /^\+?[\d\s\-()]+$/.test((s || '').trim()) && normalizePhone(s).length >= 6 }
+
 async function ensureSeed(db) {
   const s = await db.collection('_meta').findOne({ key: 'seeded_v2' })
   if (s) return
@@ -138,12 +145,14 @@ async function handler(request, ctx) {
       const b = await request.json()
       if (!b.email || !b.password || !b.firstName || !b.lastName) return json({ error: 'Missing fields' }, 400)
       const email = b.email.toLowerCase()
-      const exists = await db.collection('users').findOne({ email })
-      if (exists) return json({ error: 'Email already registered' }, 400)
+      const phoneNorm = normalizePhone(b.phone)
+      const exists = await db.collection('users').findOne({ $or: [{ email }, ...(phoneNorm ? [{ phoneNorm }] : [])] })
+      if (exists) return json({ error: exists.email === email ? 'Email already registered' : 'Phone number already registered' }, 400)
       const u = {
-        id: uuidv4(), email, passwordHash: hashPassword(b.password),
+        id: uuidv4(), email, phone: b.phone || '', phoneNorm,
+        passwordHash: hashPassword(b.password),
         firstName: b.firstName, lastName: b.lastName, companyName: b.companyName || '',
-        phone: b.phone || '', role: 'customer', isActive: true, createdAt: new Date().toISOString(),
+        role: 'customer', isActive: true, createdAt: new Date().toISOString(), lastLoginAt: null,
       }
       await db.collection('users').insertOne(u)
       mockSendEmail({ to: email, subject: 'Welcome to Vijaya Engineering Works', body: `Hello ${b.firstName}, your VEW customer account has been created.` })
@@ -154,12 +163,41 @@ async function handler(request, ctx) {
 
     if (route === 'auth/login' && method === 'POST') {
       const b = await request.json()
-      const email = (b.email || '').toLowerCase()
-      const u = await db.collection('users').findOne({ email, isActive: true })
-      if (!u || !verifyPassword(b.password, u.passwordHash)) return json({ error: 'Invalid email or password' }, 401)
-      const token = signToken({ userId: u.id, role: u.role })
-      const { passwordHash, _id, ...safe } = u
+      const identifier = (b.identifier || b.email || '').trim()
+      if (!identifier || !b.password) return json({ error: 'Missing credentials' }, 400)
+      let user
+      if (isEmail(identifier)) {
+        user = await db.collection('users').findOne({ email: identifier.toLowerCase(), isActive: true })
+      } else {
+        const pn = normalizePhone(identifier)
+        if (pn.length < 6) return json({ error: 'Invalid identifier' }, 400)
+        // Try exact match, then suffix match (handle country codes)
+        user = await db.collection('users').findOne({ phoneNorm: pn, isActive: true })
+        if (!user) {
+          const suffix = pn.slice(-10)
+          user = await db.collection('users').findOne({ phoneNorm: { $regex: suffix + '$' }, isActive: true })
+        }
+      }
+      if (!user || !verifyPassword(b.password, user.passwordHash)) return json({ error: 'Invalid credentials or account disabled' }, 401)
+      await db.collection('users').updateOne({ id: user.id }, { $set: { lastLoginAt: new Date().toISOString() } })
+      const token = signToken({ userId: user.id, role: user.role })
+      const { passwordHash, _id, ...safe } = user
       return json({ token, user: safe })
+    }
+
+    // Forgot password (mocked — sends a reset link)
+    if (route === 'auth/forgot' && method === 'POST') {
+      const b = await request.json()
+      const identifier = (b.identifier || '').trim()
+      let user
+      if (isEmail(identifier)) user = await db.collection('users').findOne({ email: identifier.toLowerCase() })
+      else user = await db.collection('users').findOne({ phoneNorm: normalizePhone(identifier) })
+      // Always return success (don't leak which accounts exist)
+      if (user) {
+        const tempToken = signToken({ resetUserId: user.id })
+        mockSendEmail({ to: user.email, subject: 'VEW · Password Reset', body: `Reset your password: /reset?token=${tempToken.slice(0, 40)}...` })
+      }
+      return json({ success: true, message: 'If an account exists, reset instructions were sent.' })
     }
 
     const me = await getAuthUser(request, db)
@@ -333,6 +371,55 @@ async function handler(request, ctx) {
       const f = await db.collection('files').findOne({ id })
       if (!f) return json({ error: 'Not found' }, 404)
       return json({ id: f.id, name: f.name, type: f.type, size: f.size, dataUrl: f.dataUrl })
+    }
+
+    // ==== ADMIN USER MANAGEMENT ====
+    if (route === 'admin/users' && method === 'GET') {
+      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      const url = new URL(request.url)
+      const q = (url.searchParams.get('q') || '').toLowerCase()
+      const users = await db.collection('users').find({}, { projection: { _id: 0, passwordHash: 0 } }).sort({ createdAt: -1 }).toArray()
+      // Attach RFQ count
+      const rfqs = await db.collection('rfqs').find({}, { projection: { userId: 1, 'customer.email': 1 } }).toArray()
+      const enriched = users.map(u => ({
+        ...u,
+        rfqCount: rfqs.filter(r => r.userId === u.id || r.customer?.email === u.email).length,
+      }))
+      const filtered = q ? enriched.filter(u => [u.firstName, u.lastName, u.email, u.phone, u.companyName].filter(Boolean).some(x => x.toLowerCase().includes(q))) : enriched
+      return json({ users: filtered })
+    }
+
+    if (route.match(/^admin\/users\/[^/]+\/toggle$/) && method === 'PATCH') {
+      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      const id = path[2]
+      const u = await db.collection('users').findOne({ id })
+      if (!u) return json({ error: 'Not found' }, 404)
+      if (u.role === 'admin') return json({ error: 'Cannot disable admin' }, 400)
+      await db.collection('users').updateOne({ id }, { $set: { isActive: !u.isActive } })
+      return json({ success: true, isActive: !u.isActive })
+    }
+
+    if (route.match(/^admin\/users\/[^/]+\/reset-password$/) && method === 'POST') {
+      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      const id = path[2]
+      const b = await request.json()
+      if (!b.password || b.password.length < 6) return json({ error: 'Password must be at least 6 characters' }, 400)
+      const u = await db.collection('users').findOne({ id })
+      if (!u) return json({ error: 'Not found' }, 404)
+      await db.collection('users').updateOne({ id }, { $set: { passwordHash: hashPassword(b.password) } })
+      mockSendEmail({ to: u.email, subject: 'VEW · Password reset by admin', body: `Your VEW account password has been reset by an administrator.` })
+      return json({ success: true })
+    }
+
+    if (route.match(/^admin\/users\/[^/]+\/impersonate$/) && method === 'POST') {
+      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      const id = path[2]
+      const u = await db.collection('users').findOne({ id })
+      if (!u) return json({ error: 'Not found' }, 404)
+      if (u.role === 'admin') return json({ error: 'Cannot impersonate another admin' }, 400)
+      const token = signToken({ userId: u.id, role: u.role, impersonatedBy: me.id, impersonatedByEmail: me.email })
+      const { passwordHash, _id, ...safe } = u
+      return json({ token, user: safe, impersonating: true })
     }
 
     // Admin stats
