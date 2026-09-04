@@ -161,8 +161,8 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen }) {
         <button onClick={() => setRoute('home')} className="flex items-center gap-2">
           <GearLogo />
           <div className="text-white text-left">
-            <div className="font-bold tracking-tight leading-none">PrecisionGear</div>
-            <div className="text-[10px] uppercase tracking-widest text-slate-400 leading-none mt-0.5">Industries</div>
+            <div className="font-bold tracking-tight leading-none">Vijaya Engineering Works</div>
+            <div className="text-[10px] uppercase tracking-widest text-amber-400 leading-none mt-0.5">VEW · Precision Gears</div>
           </div>
         </button>
         <nav className="hidden lg:flex items-center gap-1">
@@ -206,7 +206,7 @@ function Footer({ setRoute }) {
         <div>
           <div className="flex items-center gap-2 mb-3">
             <GearLogo />
-            <div className="text-white font-bold">PrecisionGear Industries</div>
+            <div className="text-white font-bold">Vijaya Engineering Works</div>
           </div>
           <p className="text-sm">Custom precision gear manufacturing from your drawings and specifications.</p>
         </div>
@@ -229,13 +229,13 @@ function Footer({ setRoute }) {
           <div className="text-white font-semibold mb-3">Contact</div>
           <ul className="space-y-2 text-sm">
             <li className="flex items-center gap-2"><Phone className="h-4 w-4" /> +1 (555) 013-8842</li>
-            <li className="flex items-center gap-2"><Mail className="h-4 w-4" /> sales@precisiongear.co</li>
+            <li className="flex items-center gap-2"><Mail className="h-4 w-4" /> sales@vew.com</li>
             <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5" /> 1420 Foundry Way,<br/>Cleveland, OH 44115</li>
           </ul>
         </div>
       </div>
       <div className="border-t border-slate-800 py-4 text-center text-xs">
-        © {new Date().getFullYear()} PrecisionGear Industries. All rights reserved.
+        © {new Date().getFullYear()} Vijaya Engineering Works. All rights reserved.
       </div>
     </footer>
   )
@@ -249,8 +249,11 @@ function HomePage({ setRoute }) {
           <img src={HERO_IMG} alt="Industrial gears" className="w-full h-full object-cover opacity-30" />
           <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/85 to-slate-900/40" />
         </div>
+        <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-end pr-4 md:pr-16 overflow-hidden">
+          <span className="text-white/[0.04] font-black tracking-tighter select-none leading-none" style={{ fontSize: 'clamp(180px, 32vw, 480px)' }}>VEW</span>
+        </div>
         <div className="relative container mx-auto px-4 py-24 lg:py-32 max-w-4xl">
-          <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 mb-5 hover:bg-amber-500/20">ISO 9001 · AGMA Q12 Capable</Badge>
+          <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 mb-5 hover:bg-amber-500/20">Vijaya Engineering Works · ISO 9001 · AGMA Q12 Capable</Badge>
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight mb-5">
             Precision Gears Built to Your <span className="text-amber-400">Specifications</span>
           </h1>
@@ -427,8 +430,8 @@ function CapabilitiesPage() {
 function AboutPage() {
   return (
     <div className="container mx-auto px-4 py-16 max-w-3xl">
-      <h1 className="text-4xl font-bold text-slate-900 mb-6">About PrecisionGear Industries</h1>
-      <p className="text-lg text-slate-700 mb-4">For over three decades, PrecisionGear Industries has been a trusted partner to OEMs and MRO customers across aerospace, energy, automotive, and heavy industry.</p>
+      <h1 className="text-4xl font-bold text-slate-900 mb-6">About Vijaya Engineering Works</h1>
+      <p className="text-lg text-slate-700 mb-4">For over three decades, Vijaya Engineering Works (VEW) has been a trusted partner to OEMs and MRO customers across aerospace, energy, automotive, and heavy industry.</p>
       <p className="text-slate-700 mb-4">Every gear we produce is built from your drawing and specifications — no catalog parts, no compromises. Our team of gear engineers, machinists, and metrologists deliver components that meet or exceed the tightest AGMA and DIN standards.</p>
       <p className="text-slate-700">From a single prototype pinion to full production ring-and-pinion sets, we combine artisan craftsmanship with modern CNC and grinding technology.</p>
     </div>
@@ -442,7 +445,7 @@ function ContactPage() {
       <div className="grid md:grid-cols-2 gap-10">
         <div className="space-y-4 text-slate-700">
           <div className="flex items-start gap-3"><Phone className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Phone</div>+1 (555) 013-8842</div></div>
-          <div className="flex items-start gap-3"><Mail className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Email</div>sales@precisiongear.co</div></div>
+          <div className="flex items-start gap-3"><Mail className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Email</div>sales@vew.com</div></div>
           <div className="flex items-start gap-3"><MapPin className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Address</div>1420 Foundry Way, Cleveland, OH 44115</div></div>
           <div className="flex items-start gap-3"><Building2 className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Hours</div>Mon–Fri, 7:00 AM – 5:00 PM ET</div></div>
         </div>
@@ -814,7 +817,7 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, asCustomer, asAdmin }) {
   async function sendMessage() {
     if (!msgText.trim()) return
     await fetch(`/api/rfq/${current.id}/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: asAdmin ? 'admin' : 'customer', author: asAdmin ? 'PrecisionGear Team' : (current.customer?.firstName || 'Customer'), text: msgText }) })
+      body: JSON.stringify({ from: asAdmin ? 'admin' : 'customer', author: asAdmin ? 'VEW Team' : (current.customer?.firstName || 'Customer'), text: msgText }) })
     setMsgText('')
     refresh()
   }

@@ -5,7 +5,7 @@ import { Toaster } from '@/components/ui/sonner'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata = {
-  title: 'PrecisionGear Industries — Custom Gear Manufacturing',
+  title: 'Vijaya Engineering Works (VEW) — Custom Gear Manufacturing',
   description: 'Precision spiral bevel, helical, spur, and custom gears manufactured to your specifications.',
 }
 

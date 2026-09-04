@@ -5,9 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 const MONGO_URL = process.env.MONGO_URL
 const DB_NAME = process.env.DB_NAME || 'gear_manufacturing'
 
-let client
-let db
-
+let client, db
 async function getDb() {
   if (db) return db
   client = new MongoClient(MONGO_URL)
@@ -16,65 +14,38 @@ async function getDb() {
   return db
 }
 
-function json(data, status = 200) {
-  return NextResponse.json(data, { status })
-}
+function json(data, status = 200) { return NextResponse.json(data, { status }) }
 
 async function generateRfqNumber(db) {
   const year = new Date().getFullYear()
   const count = await db.collection('rfqs').countDocuments({ year })
-  const seq = String(count + 1).padStart(6, '0')
-  return `RFQ-${year}-${seq}`
+  return `RFQ-${year}-${String(count + 1).padStart(6, '0')}`
 }
 
-async function generateOrderNumber(db) {
-  const year = new Date().getFullYear()
-  const count = await db.collection('orders').countDocuments({ year })
-  const seq = String(count + 1).padStart(6, '0')
-  return `ORD-${year}-${seq}`
-}
+const STATUSES = ['Submitted','Under Review','Engineering Review','Need More Information','Quote Prepared','Quote Sent','Customer Approved','Order Confirmed','In Production','Quality Inspection','Ready to Ship','Shipped','Completed','Cancelled']
 
-const STATUSES = [
-  'Submitted','Under Review','Engineering Review','Need More Information',
-  'Quote Prepared','Quote Sent','Customer Approved','Order Confirmed',
-  'In Production','Quality Inspection','Ready to Ship','Shipped','Completed','Cancelled'
-]
-
-async function handler(request, { params }) {
+async function handler(request, ctx) {
   try {
     const db = await getDb()
     const method = request.method
-    const path = params?.path || []
+    const p = await ctx.params
+    const path = p?.path || []
     const route = path.join('/')
 
-    // Health check
-    if (route === '' || route === 'health') {
-      return json({ status: 'ok', service: 'PrecisionGear API' })
-    }
+    if (route === '' || route === 'health') return json({ status: 'ok', service: 'VEW API' })
 
-    // === RFQs ===
     if (route === 'rfq' && method === 'POST') {
       const body = await request.json()
       const rfqNumber = await generateRfqNumber(db)
       const now = new Date().toISOString()
       const doc = {
-        id: uuidv4(),
-        rfqNumber,
-        year: new Date().getFullYear(),
-        gearType: body.gearType || '',
-        specifications: body.specifications || {},
-        general: body.general || {},
-        files: body.files || [],
-        customer: body.customer || {},
-        notes: body.notes || '',
-        status: 'Submitted',
-        internalNotes: '',
-        pricing: null,
-        leadTime: '',
+        id: uuidv4(), rfqNumber, year: new Date().getFullYear(),
+        gearType: body.gearType || '', specifications: body.specifications || {},
+        general: body.general || {}, files: body.files || [],
+        customer: body.customer || {}, notes: body.notes || '',
+        status: 'Submitted', internalNotes: '', pricing: null, leadTime: '',
         statusHistory: [{ status: 'Submitted', at: now, note: 'RFQ submitted by customer' }],
-        messages: [],
-        createdAt: now,
-        updatedAt: now,
+        messages: [], createdAt: now, updatedAt: now,
       }
       await db.collection('rfqs').insertOne(doc)
       const { _id, ...rest } = doc
@@ -89,14 +60,14 @@ async function handler(request, { params }) {
       return json({ rfqs })
     }
 
-    if (route.startsWith('rfq/') && method === 'GET') {
+    if (route.startsWith('rfq/') && path.length === 2 && method === 'GET') {
       const id = path[1]
       const rfq = await db.collection('rfqs').findOne({ $or: [{ id }, { rfqNumber: id }] }, { projection: { _id: 0 } })
       if (!rfq) return json({ error: 'Not found' }, 404)
       return json({ rfq })
     }
 
-    if (route.startsWith('rfq/') && method === 'PATCH') {
+    if (route.startsWith('rfq/') && path.length === 2 && method === 'PATCH') {
       const id = path[1]
       const body = await request.json()
       const rfq = await db.collection('rfqs').findOne({ id })
@@ -118,35 +89,20 @@ async function handler(request, { params }) {
       return json({ success: true, rfq: updated })
     }
 
-    // Messages on an RFQ
     if (route.match(/^rfq\/[^/]+\/messages$/) && method === 'POST') {
       const id = path[1]
       const body = await request.json()
-      const msg = {
-        id: uuidv4(),
-        from: body.from || 'customer',
-        author: body.author || 'Customer',
-        text: body.text || '',
-        at: new Date().toISOString(),
-      }
+      const msg = { id: uuidv4(), from: body.from || 'customer', author: body.author || 'Customer', text: body.text || '', at: new Date().toISOString() }
       await db.collection('rfqs').updateOne({ id }, { $push: { messages: msg }, $set: { updatedAt: msg.at } })
       return json({ success: true, message: msg })
     }
 
-    // === File upload (base64 stored in Mongo) ===
     if (route === 'upload' && method === 'POST') {
       const body = await request.json()
       const files = body.files || []
       const saved = []
       for (const f of files) {
-        const doc = {
-          id: uuidv4(),
-          name: f.name,
-          type: f.type,
-          size: f.size,
-          dataUrl: f.dataUrl,
-          uploadedAt: new Date().toISOString(),
-        }
+        const doc = { id: uuidv4(), name: f.name, type: f.type, size: f.size, dataUrl: f.dataUrl, uploadedAt: new Date().toISOString() }
         await db.collection('files').insertOne(doc)
         saved.push({ id: doc.id, name: doc.name, type: doc.type, size: doc.size })
       }
@@ -160,7 +116,6 @@ async function handler(request, { params }) {
       return json({ id: f.id, name: f.name, type: f.type, size: f.size, dataUrl: f.dataUrl })
     }
 
-    // === Admin stats ===
     if (route === 'admin/stats' && method === 'GET') {
       const now = new Date()
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
@@ -172,32 +127,7 @@ async function handler(request, { params }) {
       const quotesSent = rfqs.filter(r => ['Quote Sent','Customer Approved','Order Confirmed','In Production','Quality Inspection','Ready to Ship','Shipped','Completed'].includes(r.status)).length
       const activeOrders = rfqs.filter(r => ['Order Confirmed','In Production','Quality Inspection','Ready to Ship'].includes(r.status)).length
       const totalValue = rfqs.reduce((sum, r) => sum + (r.pricing?.total || 0), 0)
-      return json({
-        total: rfqs.length,
-        thisMonth,
-        quotesSent,
-        activeOrders,
-        totalValue,
-        byStatus,
-      })
-    }
-
-    // Search
-    if (route === 'admin/search' && method === 'GET') {
-      const url = new URL(request.url)
-      const q = (url.searchParams.get('q') || '').toLowerCase()
-      if (!q) return json({ rfqs: [] })
-      const all = await db.collection('rfqs').find({}, { projection: { _id: 0 } }).toArray()
-      const results = all.filter(r => {
-        const hay = [
-          r.rfqNumber, r.gearType,
-          r.customer?.companyName, r.customer?.email, r.customer?.firstName, r.customer?.lastName,
-          r.general?.partName, r.general?.partNumber, r.general?.drawingNumber, r.general?.material,
-          r.specifications?.numberOfTeeth, r.specifications?.module
-        ].filter(Boolean).join(' ').toLowerCase()
-        return hay.includes(q)
-      })
-      return json({ rfqs: results })
+      return json({ total: rfqs.length, thisMonth, quotesSent, activeOrders, totalValue, byStatus })
     }
 
     return json({ error: 'Not found', route, method }, 404)
