@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
+import { ManagerManagement, CompanyManagement } from '@/components/management-panels'
+const isStaff = user => ['owner', 'manager'].includes(user?.role)
 import {
   Cog, Wrench, Factory, Ruler, ShieldCheck, Upload, FileText, Trash2, ArrowRight, ArrowLeft,
   CheckCircle2, Menu, X, Mail, Phone, MapPin, ClipboardList, LayoutDashboard, Search,
@@ -125,20 +127,21 @@ function useAuth() {
     if (!t) { setLoading(false); return }
     setToken(t)
     fetch('/api/auth/me', { headers: { Authorization: `Bearer ${t}` } })
-      .then(r => r.json()).then(d => { if (d.user) setUser(d.user); else localStorage.removeItem('vew_token') })
+      .then(r => r.json()).then(d => { if (d.user) setUser(d.user); else { localStorage.removeItem('vew_token'); setToken(null) } })
+      .catch(() => { setToken(null); setUser(null) })
       .finally(() => setLoading(false))
   }, [])
   const login = async (identifier, password) => {
     const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, password }) })
     const d = await r.json()
-    if (!r.ok) throw new Error(d.error)
+    if (!r.ok) { const error = new Error(d.error); error.code = d.code; throw error }
     localStorage.setItem('vew_token', d.token); setToken(d.token); setUser(d.user); return d.user
   }
   const signup = async (data) => {
     const r = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
     const d = await r.json()
     if (!r.ok) throw new Error(d.error)
-    localStorage.setItem('vew_token', d.token); setToken(d.token); setUser(d.user); return d.user
+    return d
   }
   const impersonate = async (userId) => {
     const r = await fetch(`/api/admin/users/${userId}/impersonate`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } })
@@ -155,7 +158,7 @@ function useAuth() {
     localStorage.removeItem('vew_admin_token')
     setToken(adminToken)
     // Re-fetch admin user
-    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${adminToken}` } }).then(r => r.json()).then(d => setUser(d.user))
+    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${adminToken}` } }).then(r => r.json()).then(d => { if (!d.user) { logout(); toast.error('Please sign in again'); return } setUser(d.user) }).catch(() => { logout(); toast.error('Please sign in again') })
   }
   const logout = () => { localStorage.removeItem('vew_token'); localStorage.removeItem('vew_admin_token'); setToken(null); setUser(null) }
   return { user, token, loading, login, signup, logout, impersonate, exitImpersonation }
@@ -164,10 +167,18 @@ function useAuth() {
 function api(token) {
   const h = { 'Content-Type': 'application/json' }
   if (token) h.Authorization = `Bearer ${token}`
+  const request = async (u, method, body) => {
+    try {
+      const response = await fetch(u, { method, headers: h, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+      const data = await response.json()
+      if (!response.ok) { toast.error(data.error || 'Request failed'); return { error: data.error || 'Request failed', success: false } }
+      return data
+    } catch { toast.error('Unable to reach the server. Please try again.'); return { error: 'Connection failed', success: false } }
+  }
   return {
-    get: (u) => fetch(u, { headers: h }).then(r => r.json()),
-    post: (u, body) => fetch(u, { method: 'POST', headers: h, body: JSON.stringify(body) }).then(r => r.json()),
-    patch: (u, body) => fetch(u, { method: 'PATCH', headers: h, body: JSON.stringify(body) }).then(r => r.json()),
+    get: u => request(u, 'GET'), post: (u, body) => request(u, 'POST', body),
+    patch: (u, body) => request(u, 'PATCH', body), delete: u => request(u, 'DELETE'),
+    put: (u, body) => request(u, 'PUT', body),
   }
 }
 
@@ -214,7 +225,7 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
         <div className="flex items-center gap-2">
           {user ? (
             <>
-              <Button variant="ghost" size="sm" onClick={() => setRoute(user.role === 'admin' ? 'admin' : 'portal')} className="text-slate-300 hover:text-white hover:bg-slate-800 hidden sm:inline-flex">
+              <Button variant="ghost" size="sm" onClick={() => setRoute(isStaff(user) ? 'admin' : 'portal')} className="text-slate-300 hover:text-white hover:bg-slate-800 hidden sm:inline-flex">
                 <User className="h-4 w-4 mr-1" /> {user.firstName || user.fullName || 'Account'}
               </Button>
               <Button variant="ghost" size="sm" onClick={onLogout} className="text-slate-400 hover:text-white hover:bg-slate-800"><LogOut className="h-4 w-4" /></Button>
@@ -232,7 +243,7 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
             <div className="container mx-auto px-4 py-3 flex flex-col gap-1">
               {links.map(l => <button key={l.key} onClick={() => { setRoute(l.key); setMobileOpen(false) }} className={`px-3 py-2 text-left rounded-md ${route === l.key ? 'text-amber-400 bg-slate-800' : 'text-slate-300'}`}>{l.label}</button>)}
               {user ? <>
-                <button onClick={() => { setRoute(user.role === 'admin' ? 'admin' : 'portal'); setMobileOpen(false) }} className="px-3 py-2 text-left text-slate-300">My Account</button>
+                <button onClick={() => { setRoute(isStaff(user) ? 'admin' : 'portal'); setMobileOpen(false) }} className="px-3 py-2 text-left text-slate-300">My Account</button>
                 <button onClick={onLogout} className="px-3 py-2 text-left text-slate-300">Sign Out</button>
               </> : <button onClick={() => { setRoute('login'); setMobileOpen(false) }} className="px-3 py-2 text-left text-slate-300">Sign In</button>}
               <Button onClick={() => { setRoute('rfq'); setMobileOpen(false) }} className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold mt-2">Request a Quote</Button>
@@ -633,6 +644,13 @@ function AboutPage({ cms }) {
 }
 
 function ContactPage({ cms }) {
+  const [contact, setContact] = useState({ name: '', email: '', message: '' })
+  const contactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cms?.email || '') ? cms.email : null
+  function composeContact(e) {
+    e.preventDefault()
+    if (!contactEmail) { toast.error('Contact email is temporarily unavailable'); return }
+    window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent('Website enquiry from ' + contact.name)}&body=${encodeURIComponent(contact.message + '\n\nFrom: ' + contact.name + '\nEmail: ' + contact.email)}`
+  }
   return (
     <div className="container mx-auto px-4 py-20">
       <FadeIn><h1 className="text-5xl font-bold text-slate-900 mb-10 tracking-tight">Contact Us</h1></FadeIn>
@@ -643,45 +661,95 @@ function ContactPage({ cms }) {
           <div className="flex items-start gap-3"><MapPin className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Address</div>{cms?.address}</div></div>
           <div className="flex items-start gap-3"><Building2 className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Hours</div>{cms?.hours}</div></div>
         </div></FadeIn>
-        <FadeIn delay={0.1}><Card><CardContent className="p-6 space-y-3">
-          <div><Label>Name</Label><Input placeholder="Your name" /></div>
-          <div><Label>Email</Label><Input placeholder="you@example.com" /></div>
-          <div><Label>Message</Label><Textarea placeholder="How can we help?" rows={4} /></div>
-          <Button className="bg-slate-900 hover:bg-slate-800 w-full">Send Message</Button>
-        </CardContent></Card></FadeIn>
+        <FadeIn delay={0.1}><Card><CardContent className="p-6"><form onSubmit={composeContact} className="space-y-3">
+          <label className="block text-sm">Name<Input required placeholder="Your name" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} /></label>
+          <label className="block text-sm">Email<Input required type="email" placeholder="you@example.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} /></label>
+          <label className="block text-sm">Message<Textarea required placeholder="How can we help?" rows={4} value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} /></label>
+          <Button disabled={!contactEmail} className="bg-slate-900 hover:bg-slate-800 w-full">Compose email</Button>
+          <p className="text-xs text-slate-500">Opens your email app so you can review and send your message.</p>
+        </form></CardContent></Card></FadeIn>
       </div>
     </div>
   )
 }
 
 // ============== LOGIN / SIGNUP ==============
-function LoginPage({ setRoute, auth }) {
-  const [mode, setMode] = useState('login') // login | signup | forgot
-  const [form, setForm] = useState({ identifier: '', password: '', email: '', phone: '', firstName: '', lastName: '', companyName: '' })
+function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
+  const [mode, setMode] = useState(authAction?.type || 'login')
+  const [form, setForm] = useState({ identifier: '', password: '', confirmPassword: '', email: '', phone: '', firstName: '', lastName: '', companyName: '' })
   const [loading, setLoading] = useState(false)
   const [welcome, setWelcome] = useState(null) // { name, isNew }
+  const [actionMessage, setActionMessage] = useState('')
+  const [actionError, setActionError] = useState('')
+
+  useEffect(() => {
+    if (authAction) setMode(authAction.type)
+  }, [authAction])
+
+  async function confirmEmail() {
+    setLoading(true); setActionError(''); setActionMessage('')
+    try {
+      const r = await fetch('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token }) })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error)
+      setActionMessage(d.message)
+    } catch (e) { setActionError(e.message) } finally { setLoading(false) }
+  }
+
+  async function resendVerification() {
+    const email = (form.email || form.identifier).trim()
+    if (!email || !email.includes('@')) { toast.error('Enter your email address'); return }
+    setLoading(true)
+    try {
+      const r = await fetch('/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
+      const d = await r.json(); if (!r.ok) throw new Error(d.error)
+      setMode('verification-sent'); setActionMessage(d.message)
+    } catch (e) { toast.error(e.message) } finally { setLoading(false) }
+  }
 
   async function submit(e) {
     e.preventDefault()
     setLoading(true)
     try {
       if (mode === 'login') {
-        const u = await auth.login(form.identifier, form.password)
-        setWelcome({ name: u.firstName || 'there', isNew: false, role: u.role })
+        try {
+          const u = await auth.login(form.identifier, form.password)
+          setWelcome({ name: u.firstName || 'there', isNew: false, role: u.role })
+        } catch (error) {
+          if (error.code === 'EMAIL_NOT_VERIFIED') { setForm({ ...form, email: form.identifier.includes('@') ? form.identifier : '' }); setMode('unverified'); return }
+          throw error
+        }
       } else if (mode === 'signup') {
         if (!form.email || !form.phone) { toast.error('Email and phone are both required'); setLoading(false); return }
-        const u = await auth.signup(form)
-        setWelcome({ name: u.firstName, isNew: true, role: u.role })
-      } else {
-        await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: form.identifier }) })
-        toast.success('If an account exists, reset instructions were sent (mocked email).', { duration: 5000 })
-        setMode('login')
+        const d = await auth.signup(form)
+        setActionMessage(d.message); setMode('verification-sent')
+      } else if (mode === 'forgot') {
+        const r = await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: form.identifier }) })
+        const d = await r.json(); if (!r.ok) throw new Error(d.error)
+        setActionMessage(d.message); setMode('reset-sent')
+      } else if (mode === 'reset') {
+        if (form.password !== form.confirmPassword) throw new Error('Passwords do not match')
+        const r = await fetch('/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token, password: form.password }) })
+        const d = await r.json(); if (!r.ok) throw new Error(d.error)
+        auth.logout(); toast.success(d.message); clearAuthAction?.(); setForm({ ...form, password: '', confirmPassword: '' }); setMode('login')
       }
     } catch (e) { toast.error(e.message) } finally { setLoading(false) }
   }
 
   function continueAfterWelcome() {
-    setRoute(welcome.role === 'admin' ? 'admin' : 'portal')
+    setRoute(isStaff(welcome) ? 'admin' : 'portal')
+  }
+
+  const titles = {
+    login: 'Sign in to your account', signup: 'Create your VEW account', forgot: 'Reset your password',
+    reset: 'Choose a new password', verify: 'Verify your email', unverified: 'Verify your email first',
+    'verification-sent': 'Check your email', 'reset-sent': 'Check your email',
+  }
+  const descriptions = {
+    login: 'Track your RFQs and production progress in real-time.', signup: 'Get instant quotes and live production tracking.',
+    forgot: 'Enter your email to receive reset instructions.', reset: 'Enter a secure new password for your account.',
+    verify: 'Confirm below to verify your email address.', unverified: 'We sent a verification link to your email address.',
+    'verification-sent': 'Open the verification link before signing in.', 'reset-sent': 'Open the password-reset link sent to your email.',
   }
 
   return (
@@ -697,16 +765,14 @@ function LoginPage({ setRoute, auth }) {
         <Card className="border-slate-200 shadow-2xl shadow-slate-200/60 overflow-hidden">
           <CardHeader className="bg-slate-950 text-white pb-8">
             <CardTitle className="text-2xl tracking-tight">
-              {mode === 'login' ? 'Sign in to your account' : mode === 'signup' ? 'Create your VEW account' : 'Reset your password'}
+              {titles[mode] || titles.login}
             </CardTitle>
             <CardDescription className="text-slate-400">
-              {mode === 'login' ? 'Track your RFQs and production progress in real-time.' :
-                mode === 'signup' ? 'Get instant quotes and live production tracking.' :
-                'Enter your email or phone to receive reset instructions.'}
+              {descriptions[mode] || descriptions.login}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 -mt-4">
-            <form onSubmit={submit} className="space-y-4 bg-white rounded-lg">
+            {['login','signup','forgot','reset'].includes(mode) && <form onSubmit={submit} className="space-y-4 bg-white rounded-lg">
               {mode === 'signup' && <>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label className="text-slate-700">First Name *</Label><Input required className="mt-1" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></div>
@@ -726,32 +792,40 @@ function LoginPage({ setRoute, auth }) {
                 </div>
               </>}
               {(mode === 'login' || mode === 'forgot') && (
-                <div><Label className="text-slate-700">Email or Phone</Label>
+                <div><Label className="text-slate-700">{mode === 'forgot' ? 'Email address' : 'Email or Phone'}</Label>
                   <div className="relative mt-1"><User className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
-                    <Input required className="pl-9 h-11" placeholder="you@company.com or +91 98765 43210" value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
+                    <Input required type={mode === 'forgot' ? 'email' : 'text'} className="pl-9 h-11" placeholder={mode === 'forgot' ? 'you@company.com' : 'you@company.com or +91 98765 43210'} value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
                   </div>
                 </div>
               )}
-              {mode !== 'forgot' && (
+              {(mode === 'login' || mode === 'signup' || mode === 'reset') && (
                 <div>
                   <div className="flex items-center justify-between">
                     <Label className="text-slate-700">Password{mode === 'signup' && ' *'}</Label>
                     {mode === 'login' && <button type="button" onClick={() => setMode('forgot')} className="text-xs text-amber-600 font-medium hover:underline">Forgot password?</button>}
                   </div>
-                  <Input required type="password" className="mt-1 h-11" placeholder={mode === 'signup' ? 'At least 6 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+                  <Input required minLength={mode === 'login' ? undefined : 8} maxLength={128} type="password" className="mt-1 h-11" placeholder={mode === 'signup' || mode === 'reset' ? 'At least 8 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
                 </div>
               )}
+              {mode === 'reset' && <div><Label className="text-slate-700">Confirm new password</Label><Input required minLength={8} type="password" className="mt-1 h-11" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} /></div>}
               <Button disabled={loading} type="submit" className="w-full bg-slate-900 hover:bg-slate-800 h-11 rounded-full font-semibold">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : 'Send Reset Instructions'}
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : mode === 'reset' ? 'Update Password' : 'Send Reset Instructions'}
               </Button>
-            </form>
+            </form>}
+            {mode === 'verify' && <div className="text-center py-6 space-y-4">
+              {loading && <Loader2 className="h-8 w-8 animate-spin text-amber-500 mx-auto" />}
+              {!loading && !actionMessage && !actionError && <Button onClick={confirmEmail}>Verify email address</Button>}
+              {actionMessage && <><CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto" /><p className="text-sm text-slate-700">{actionMessage}</p><Button onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full bg-slate-900">Continue to sign in</Button></>}
+              {actionError && <><p className="text-sm text-red-600">{actionError}</p><Button variant="outline" onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full">Return to sign in</Button></>}
+            </div>}
+            {['verification-sent','reset-sent'].includes(mode) && <div className="text-center py-6 space-y-4"><Mail className="h-10 w-10 text-amber-500 mx-auto" /><p className="text-sm text-slate-700">{actionMessage}</p><Button variant="outline" onClick={() => setMode('login')} className="rounded-full">Back to sign in</Button></div>}
+            {mode === 'unverified' && <div className="text-center py-6 space-y-4"><Mail className="h-10 w-10 text-amber-500 mx-auto" /><p className="text-sm text-slate-700">Your account must be verified before you can sign in.</p><Input aria-label="Email to verify" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Your email address" /><Button disabled={loading} onClick={resendVerification} className="rounded-full bg-slate-900">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend verification email'}</Button></div>}
             <div className="mt-5 pt-5 border-t text-center text-sm text-slate-600 space-y-2">
               {mode === 'login' && <>
                 <div>New to VEW? <button onClick={() => setMode('signup')} className="text-amber-600 font-semibold">Create an account</button></div>
-                <div className="text-xs text-slate-500 bg-slate-50 rounded-md p-2">
-                  <b>Admin demo:</b> admin@vew.com / admin123
-                </div>
               </>}
+              {mode === 'login' && <div><button onClick={() => setMode('unverified')} className="text-amber-600 font-semibold">Resend verification email</button></div>}
+              {['unverified','reset'].includes(mode) && <div><button onClick={() => { clearAuthAction?.(); setMode('login') }} className="text-amber-600 font-semibold">Back to sign in</button></div>}
               {mode === 'signup' && <div>Already have an account? <button onClick={() => setMode('login')} className="text-amber-600 font-semibold">Sign in</button></div>}
               {mode === 'forgot' && <div><button onClick={() => setMode('login')} className="text-amber-600 font-semibold">← Back to sign in</button></div>}
             </div>
@@ -776,11 +850,11 @@ function LoginPage({ setRoute, auth }) {
             <CardDescription className="text-center pt-2">
               {welcome?.isNew
                 ? "Your account is ready. You can now submit RFQs and track every stage of production live."
-                : welcome?.role === 'admin' ? 'Signed in as administrator.' : "You're signed in. Continue to your portal to see all your RFQs and orders."}
+                : isStaff(welcome) ? 'Signed in as administrator.' : "You're signed in. Continue to your portal to see all your RFQs and orders."}
             </CardDescription>
           </DialogHeader>
           <Button onClick={continueAfterWelcome} className="w-full bg-slate-900 hover:bg-slate-800 rounded-full h-11 mt-2">
-            {welcome?.role === 'admin' ? 'Go to Admin Dashboard' : 'Continue to My Portal'} <ArrowRight className="h-4 w-4 ml-1" />
+            {isStaff(welcome) ? 'Go to Admin Dashboard' : 'Continue to My Portal'} <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </DialogContent>
       </Dialog>
@@ -804,24 +878,36 @@ function UserManagement({ auth, onImpersonate }) {
   const [users, setUsers] = useState([])
   const [query, setQuery] = useState('')
   const [resetTarget, setResetTarget] = useState(null)
+  const [editTarget, setEditTarget] = useState(null)
   const [newPw, setNewPw] = useState('')
-  const load = async () => { const d = await api(auth.token).get(`/api/admin/users?q=${encodeURIComponent(query)}`); setUsers(d.users || []) }
+  const load = async () => { const d = await api(auth.token).get(`/api/admin/users?q=${encodeURIComponent(query)}`); if (d.users) setUsers(d.users) }
   useEffect(() => { load() }, [query])
 
   async function toggle(u) {
-    if (u.role === 'admin') { toast.error("Can't disable admin"); return }
-    await api(auth.token).patch(`/api/admin/users/${u.id}/toggle`, {})
+    if (isStaff(u)) { toast.error("Can't disable admin"); return }
+    const result = await api(auth.token).patch(`/api/admin/users/${u.id}/toggle`, {}); if (result.error) return
     toast.success(u.isActive ? 'User disabled' : 'User re-enabled')
     load()
   }
   async function doReset() {
-    if (!newPw || newPw.length < 6) { toast.error('At least 6 characters'); return }
+    if (!newPw || newPw.length < 8) { toast.error('At least 8 characters'); return }
     const r = await api(auth.token).post(`/api/admin/users/${resetTarget.id}/reset-password`, { password: newPw })
-    if (r.success) { toast.success('Password reset · Email sent (mocked)'); setResetTarget(null); setNewPw('') }
+    if (r.success) { toast.success('Password reset'); setResetTarget(null); setNewPw('') }
     else toast.error(r.error)
   }
+  async function saveCustomer(e) {
+    e.preventDefault()
+    const result = await api(auth.token).patch(`/api/admin/users/${editTarget.id}`, editTarget)
+    if (result.error) return
+    toast.success('Customer updated'); setEditTarget(null); load()
+  }
+  async function deleteCustomer(u) {
+    if (!window.confirm(`Delete the customer account for ${u.email}? Sign-in will be disabled and RFQ history retained.`)) return
+    const result = await api(auth.token).delete(`/api/admin/users/${u.id}`)
+    if (!result.error) { toast.success('Customer account removed'); load() }
+  }
   async function impersonate(u) {
-    if (u.role === 'admin') { toast.error("Can't impersonate another admin"); return }
+    if (isStaff(u)) { toast.error("Can't impersonate another admin"); return }
     try {
       await auth.impersonate(u.id)
       toast.success(`Now viewing as ${u.firstName} ${u.lastName}`)
@@ -865,7 +951,7 @@ function UserManagement({ auth, onImpersonate }) {
                   <div className="text-xs text-slate-500">{u.phone || '—'}</div>
                 </td>
                 <td className="px-4 py-3">
-                  <Badge className={u.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'}>{u.role}</Badge>
+                  <Badge className={isStaff(u) ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'}>{u.role}</Badge>
                 </td>
                 <td className="px-4 py-3 font-semibold text-slate-900">{u.rfqCount}</td>
                 <td className="px-4 py-3">
@@ -874,14 +960,16 @@ function UserManagement({ auth, onImpersonate }) {
                 <td className="px-4 py-3 text-slate-600 text-xs">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : 'Never'}</td>
                 <td className="px-4 py-3 text-right">
                   <div className="inline-flex gap-1">
-                    {u.role !== 'admin' && (
+                    {u.role === 'customer' && (
                       <>
-                        <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => impersonate(u)} title="Sign in as this user">
-                          <ShieldCheck className="h-3 w-3 mr-1" />Override
-                        </Button>
+                        {auth.user?.role === 'owner' && <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => impersonate(u)} title="Sign in as this customer">
+                          <ShieldCheck className="h-3 w-3 mr-1" />View as customer
+                        </Button>}
                         <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => setResetTarget(u)}>
                           <Pencil className="h-3 w-3 mr-1" />Reset
                         </Button>
+                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditTarget(u)}>Edit</Button>
+                        <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteCustomer(u)}>Delete</Button>
                         <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
                           {u.isActive ? 'Disable' : 'Enable'}
                         </Button>
@@ -895,13 +983,14 @@ function UserManagement({ auth, onImpersonate }) {
           </tbody>
         </table>
       </CardContent></Card>
+      <Dialog open={!!editTarget} onOpenChange={o => !o && setEditTarget(null)}><DialogContent><DialogHeader><DialogTitle>Edit customer details</DialogTitle></DialogHeader>{editTarget && <form onSubmit={saveCustomer} className="space-y-3">{[['firstName','First name'],['lastName','Last name'],['companyName','Company'],['phone','Phone']].map(([key,label]) => <label key={key} className="block text-sm">{label}<Input value={editTarget[key] || ''} onChange={e => setEditTarget({ ...editTarget, [key]: e.target.value })} /></label>)}<p className="text-sm text-slate-500">Email and staff access cannot be changed here.</p><Button type="submit">Save customer</Button></form>}</DialogContent></Dialog>
       <Dialog open={!!resetTarget} onOpenChange={o => !o && setResetTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Reset password for {resetTarget?.firstName} {resetTarget?.lastName}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-3">
-            <div className="text-sm text-slate-600">A notification email will be sent (mocked).</div>
+            <div className="text-sm text-slate-600">Set a temporary password and share it securely with the customer.</div>
             <Label>New Password</Label>
-            <Input type="password" placeholder="At least 6 characters" value={newPw} onChange={e => setNewPw(e.target.value)} />
+            <Input type="password" placeholder="At least 8 characters" value={newPw} onChange={e => setNewPw(e.target.value)} />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setResetTarget(null); setNewPw('') }}>Cancel</Button>
@@ -927,11 +1016,17 @@ function RfqWizard({ setRoute, prefill, auth }) {
   const specFields = SPEC_FIELDS[specGroup(gearType)]
 
   async function handleFiles(e) {
-    for (const file of Array.from(e.target.files || [])) {
-      const reader = new FileReader()
-      const dataUrl = await new Promise(res => { reader.onload = () => res(reader.result); reader.readAsDataURL(file) })
-      setFiles(prev => [...prev, { name: file.name, type: file.type, size: file.size, dataUrl }])
-    }
+    const picked = Array.from(e.target.files || [])
+    if (files.length + picked.length > 5 || [...files, ...picked].reduce((sum, f) => sum + f.size, 0) > 2_500_000) { toast.error('Select up to five files with a combined size under 2.5 MB'); e.target.value = ''; return }
+    try {
+      const added = await Promise.all(picked.map(async file => {
+        const reader = new FileReader()
+        let dataUrl = await new Promise((resolve, reject) => { reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('File could not be read')); reader.readAsDataURL(file) })
+        if (!['application/pdf','image/png','image/jpeg'].includes(file.type)) dataUrl = dataUrl.replace(/^data:[^;]*;/, 'data:application/octet-stream;')
+        return { name: file.name, type: file.type, size: file.size, dataUrl }
+      }))
+      setFiles(prev => [...prev, ...added])
+    } catch (error) { toast.error(error.message) }
     e.target.value = ''
   }
   async function submit() {
@@ -939,14 +1034,14 @@ function RfqWizard({ setRoute, prefill, auth }) {
     try {
       let savedFiles = []
       if (files.length) {
-        const r = await api(auth.token).post('/api/upload', { files })
+        const r = await api(auth.token).post('/api/upload', { files }); if (r.error) throw new Error(r.error)
         savedFiles = r.files || []
       }
       const r = await api(auth.token).post('/api/rfq', { gearType, specifications: specs, general, files: savedFiles, customer: { ...customer, email: (customer.email || '').toLowerCase() }, notes })
       if (r.success) { setSubmitted(r.rfq); toast.success(`RFQ ${r.rfq.rfqNumber} submitted`) } else toast.error(r.error || 'Failed')
     } catch (e) { toast.error(e.message) } finally { setSubmitting(false) }
   }
-  const canNext = () => step === 1 ? !!gearType : step === 5 ? customer.email && customer.firstName && customer.lastName : true
+  const canNext = () => step === 1 ? !!gearType : step === 3 ? Number.isFinite(Number(general.quantity)) && Number(general.quantity) > 0 : step === 5 ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email || '') && customer.firstName && customer.lastName : true
 
   if (submitted) return (
     <div className="container mx-auto px-4 py-20 max-w-2xl text-center">
@@ -954,7 +1049,7 @@ function RfqWizard({ setRoute, prefill, auth }) {
       <h1 className="text-4xl font-bold text-slate-900 mb-3 tracking-tight">Thank you.</h1>
       <p className="text-slate-600 mb-2">Your RFQ number:</p>
       <div className="text-3xl font-bold tracking-wider text-amber-600 mb-6">{submitted.rfqNumber}</div>
-      <p className="text-slate-600 mb-8">Our engineering team will review your request shortly. You'll receive an email confirmation and can track live progress in your portal.</p>
+      <p className="text-slate-600 mb-8">Our engineering team will review your request shortly. Track its progress in your portal.</p>
       <div className="flex gap-3 justify-center flex-wrap">
         <Button onClick={() => setRoute('portal')} className="bg-slate-900 hover:bg-slate-800 rounded-full">View in Portal</Button>
         <Button variant="outline" onClick={() => setRoute('home')} className="rounded-full">Back to Home</Button>
@@ -1006,6 +1101,7 @@ function RfqWizard({ setRoute, prefill, auth }) {
               <Upload className="h-10 w-10 text-slate-400 mx-auto mb-2" />
               <div className="font-semibold text-slate-900">Click to upload</div>
               <div className="text-sm text-slate-500">PDF, STEP, STP, DXF, DWG, JPG, PNG</div>
+              <div className="text-xs text-slate-500">Up to five files, 2.5 MB combined</div>
               <input type="file" multiple className="hidden" accept=".pdf,.step,.stp,.dxf,.dwg,.jpg,.jpeg,.png" onChange={handleFiles} />
             </label>
             {files.length > 0 && <div className="mt-4 space-y-2">{files.map((f, i) => (
@@ -1093,7 +1189,7 @@ async function generateQuotePDF(rfq, cms) {
   rows.forEach(r => { y += 8; doc.text(String(r[0]), 20, y); doc.text(String(r[1]), 130, y); doc.text(String(r[2]), 150, y); doc.text(String(r[3]), 190, y, { align: 'right' }) })
   y += 4; doc.setDrawColor(15, 23, 42); doc.line(15, y, 195, y); y += 8
   doc.setFont('helvetica', 'bold'); doc.setFontSize(12)
-  doc.text('TOTAL:', 150, y); doc.text(`$${(p.total || 0).toFixed(2)}`, 190, y, { align: 'right' })
+  doc.text('TOTAL:', 150, y); doc.text(`$${(Number(p.total) || 0).toFixed(2)}`, 190, y, { align: 'right' })
   y += 15
 
   doc.setFontSize(10); doc.setFont('helvetica', 'normal')
@@ -1113,7 +1209,7 @@ function CustomerPortal({ auth, setRoute }) {
   const [rfqs, setRfqs] = useState([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState(null)
-  const load = async () => { setLoading(true); const d = await api(auth.token).get('/api/rfq'); setRfqs(d.rfqs || []); setLoading(false) }
+  const load = async () => { setLoading(true); const d = await api(auth.token).get('/api/rfq'); if (d.rfqs) setRfqs(d.rfqs); setLoading(false) }
   useEffect(() => { load() }, [])
   useEffect(() => { const i = setInterval(load, 8000); return () => clearInterval(i) }, [])
 
@@ -1176,12 +1272,12 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
   if (!current) return null
 
   async function refresh() {
-    const d = await api(auth.token).get(`/api/rfq/${current.id}`)
+    const d = await api(auth.token).get(`/api/rfq/${current.id}`); if (d.error) return
     if (d.rfq) setCurrent(d.rfq); onUpdated && onUpdated()
   }
   async function sendMessage() {
     if (!msgText.trim()) return
-    await api(auth.token).post(`/api/rfq/${current.id}/messages`, { text: msgText })
+    const result = await api(auth.token).post(`/api/rfq/${current.id}/messages`, { text: msgText }); if (result.error) return
     setMsgText(''); refresh()
   }
   function calcTotal(p) {
@@ -1189,17 +1285,18 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
   }
   async function saveAdmin() {
     const total = calcTotal(pricing)
-    await api(auth.token).patch(`/api/rfq/${current.id}`, { status: newStatus, internalNotes, pricing: { ...pricing, total }, leadTime })
-    toast.success('RFQ updated · Email notification sent (mocked)')
+    const result = await api(auth.token).patch(`/api/rfq/${current.id}`, { status: newStatus, internalNotes, pricing: { ...pricing, total }, leadTime }); if (result.error) return
+    toast.success('RFQ updated')
     refresh()
   }
   async function updateStage(stageId, status) {
-    await api(auth.token).patch(`/api/rfq/${current.id}/stage`, { stageId, status })
+    const result = await api(auth.token).patch(`/api/rfq/${current.id}/stage`, { stageId, status }); if (result.error) return
     toast.success('Stage updated')
     refresh()
   }
   async function downloadFile(f) {
     const d = await api(auth.token).get(`/api/files/${f.id}`)
+    if (d.error) return
     const a = document.createElement('a'); a.href = d.dataUrl; a.download = d.name; a.click()
   }
 
@@ -1267,7 +1364,7 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
                   <div>Unit Price: ${current.pricing.unitPrice}</div><div>Quantity: {current.pricing.quantity}</div>
                   <div>Tooling: ${current.pricing.tooling || 0}</div><div>Engineering: ${current.pricing.engineering || 0}</div>
                   <div>Shipping: ${current.pricing.shipping || 0}</div><div>Tax: ${current.pricing.tax || 0}</div>
-                  <div className="col-span-2 font-bold text-lg mt-2">Total: ${current.pricing.total.toFixed(2)}</div>
+                  <div className="col-span-2 font-bold text-lg mt-2">Total: ${Number(current.pricing.total).toFixed(2)}</div>
                   <div>Lead Time: {current.leadTime}</div><div>Terms: {current.pricing.paymentTerms}</div>
                 </div>
               </CardContent></Card>
@@ -1306,13 +1403,17 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
                 <div className="mt-3 text-right font-bold text-lg">Total: ${calcTotal(pricing).toFixed(2)}</div>
               </CardContent></Card>
               <div className="flex gap-2">
-                <Button onClick={saveAdmin} className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-full">Save & Notify Customer</Button>
+                <Button onClick={saveAdmin} className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-full">Save changes</Button>
                 <Button onClick={() => generateQuotePDF(current, cms)} variant="outline" className="rounded-full"><FileDown className="h-4 w-4 mr-1" /> PDF</Button>
               </div>
             </TabsContent>
           )}
         </Tabs>
-        <DialogFooter><Button variant="outline" onClick={onClose} className="rounded-full">Close</Button></DialogFooter>
+        <DialogFooter>{asAdmin && <Button variant="destructive" onClick={async () => {
+          if (!window.confirm(`Delete ${current.rfqNumber}? It will be removed from active lists; its history will be retained.`)) return
+          const result = await api(auth.token).delete(`/api/rfq/${current.id}`)
+          if (!result.error) { toast.success('RFQ removed'); onClose(); onUpdated?.() }
+        }}>Delete RFQ</Button>}<Button variant="outline" onClick={onClose} className="rounded-full">Close</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -1337,7 +1438,7 @@ function StageManager({ rfqId, stages, auth, onChange }) {
   }
   async function deleteStage(sid) {
     if (!confirm('Delete this stage?')) return
-    const r = await fetch(`/api/rfq/${rfqId}/stages/${sid}`, { method: 'DELETE', headers: { Authorization: `Bearer ${auth.token}` } }).then(r => r.json())
+    const r = await api(auth.token).delete(`/api/rfq/${rfqId}/stages/${sid}`)
     if (r.success) { toast.success('Stage removed'); onChange() }
   }
   async function move(i, dir) {
@@ -1346,7 +1447,8 @@ function StageManager({ rfqId, stages, auth, onChange }) {
     const order = [...list]
     ;[order[i], order[j]] = [order[j], order[i]]
     setList(order.map((s, k) => ({ ...s, sequence: k + 1 })))
-    const r = await fetch(`/api/rfq/${rfqId}/stages/reorder`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}` }, body: JSON.stringify({ order: order.map(s => s.id) }) }).then(r => r.json())
+    const r = await api(auth.token).put(`/api/rfq/${rfqId}/stages/reorder`, { order: order.map(s => s.id) })
+    if (r.error) setList(stages)
     if (r.success) onChange()
   }
 
@@ -1393,7 +1495,7 @@ function AdminDashboard({ auth, cms, reloadCms }) {
   const [tab, setTab] = useState('rfqs')
   const load = async () => {
     const d = await api(auth.token).get('/api/rfq'); setRfqs(d.rfqs || [])
-    const s = await api(auth.token).get('/api/admin/stats'); setStats(s)
+    const s = await api(auth.token).get('/api/admin/stats'); if (!s.error) setStats(s)
   }
   useEffect(() => { load() }, [])
   useEffect(() => { const i = setInterval(load, 8000); return () => clearInterval(i) }, [])
@@ -1417,7 +1519,7 @@ function AdminDashboard({ auth, cms, reloadCms }) {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="mb-6">
-        <TabsList><TabsTrigger value="rfqs">RFQs</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="cms">Content Editor</TabsTrigger></TabsList>
+        <TabsList className="flex h-auto flex-wrap"><TabsTrigger value="rfqs">RFQs</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="companies">Companies</TabsTrigger><TabsTrigger value="cms">Content Editor</TabsTrigger>{auth.user?.role === 'owner' && <TabsTrigger value="managers">Managers</TabsTrigger>}</TabsList>
         <TabsContent value="rfqs">
           {stats && <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {[
@@ -1468,6 +1570,8 @@ function AdminDashboard({ auth, cms, reloadCms }) {
             {!filtered.length && <Card><CardContent className="p-12 text-center text-slate-500">No RFQs match.</CardContent></Card>}
           </motion.div>
         </TabsContent>
+        <TabsContent value="companies"><CompanyManagement auth={auth} /></TabsContent>
+        {auth.user?.role === 'owner' && <TabsContent value="managers"><ManagerManagement auth={auth} /></TabsContent>}
         <TabsContent value="cms"><CmsEditor auth={auth} cms={cms} reloadCms={reloadCms} /></TabsContent>
         <TabsContent value="users"><UserManagement auth={auth} onImpersonate={() => window.dispatchEvent(new CustomEvent('exitAdmin'))} /></TabsContent>
       </Tabs>
@@ -1484,7 +1588,9 @@ function CmsEditor({ auth, cms, reloadCms }) {
   const [saving, setSaving] = useState(false)
   async function save() {
     setSaving(true)
-    await api(auth.token).patch('/api/cms', form)
+    const result = await api(auth.token).patch('/api/cms', form)
+    setSaving(false)
+    if (result.error) return
     toast.success('Content updated')
     reloadCms()
     setSaving(false)
@@ -1526,13 +1632,28 @@ function CmsEditor({ auth, cms, reloadCms }) {
 function App() {
   const auth = useAuth()
   const [route, setRoute] = useState('home')
+  const [authAction, setAuthAction] = useState(null)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [reorderPrefill, setReorderPrefill] = useState(null)
   const [cms, setCms] = useState(null)
   const [signoutOpen, setSignoutOpen] = useState(false)
 
-  const loadCms = async () => { const d = await fetch('/api/cms').then(r => r.json()); setCms(d.cms) }
+  const loadCms = async () => { const d = await api().get('/api/cms'); if (d.cms) setCms(d.cms) }
   useEffect(() => { loadCms() }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search)
+    const verifyToken = params.get('verify')
+    const resetToken = params.get('reset')
+    if (verifyToken || resetToken) window.history.replaceState({}, '', window.location.pathname)
+    if (verifyToken) { setAuthAction({ type: 'verify', token: verifyToken }); setRoute('login') }
+    else if (resetToken) { setAuthAction({ type: 'reset', token: resetToken }); setRoute('login') }
+  }, [])
+
+  const clearAuthAction = () => {
+    setAuthAction(null)
+    window.history.replaceState({}, '', window.location.pathname)
+  }
 
   useEffect(() => { window.scrollTo(0, 0) }, [route])
 
@@ -1552,15 +1673,16 @@ function App() {
 
   // Route guards
   const goRoute = (r) => {
-    if ((r === 'portal' || r === 'admin') && !auth.user) { setRoute('login'); return }
-    if (r === 'admin' && auth.user?.role !== 'admin') { toast.error('Admin access required'); return }
+    if (['portal','admin','rfq'].includes(r) && !auth.user) { setRoute('login'); return }
+    if (r === 'admin' && !isStaff(auth.user)) { toast.error('Admin access required'); return }
     setRoute(r)
   }
 
   if (auth.loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /></div>
 
   let content
-  if (route === 'home') content = <HomePage setRoute={goRoute} cms={cms} />
+  if (route === 'admin' && !isStaff(auth.user)) content = <LoginPage setRoute={goRoute} auth={auth} />
+  else if (route === 'home') content = <HomePage setRoute={goRoute} cms={cms} />
   else if (route === 'products') content = <ProductsPage setRoute={goRoute} cms={cms} />
   else if (route.startsWith('product:')) content = <ProductDetail productKey={route.slice(8)} setRoute={goRoute} cms={cms} />
   else if (route === 'capabilities') content = <CapabilitiesPage />
@@ -1568,7 +1690,7 @@ function App() {
   else if (route === 'about') content = <AboutPage cms={cms} />
   else if (route === 'contact') content = <ContactPage cms={cms} />
   else if (route === 'rfq') content = <RfqWizard setRoute={goRoute} prefill={reorderPrefill} auth={auth} />
-  else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} />
+  else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} authAction={authAction} clearAuthAction={clearAuthAction} />
   else if (route === 'portal') content = <CustomerPortal auth={auth} setRoute={goRoute} />
   else if (route === 'admin') content = <AdminDashboard auth={auth} cms={cms} reloadCms={loadCms} />
   else content = <HomePage setRoute={goRoute} cms={cms} />
