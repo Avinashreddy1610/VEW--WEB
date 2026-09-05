@@ -26,6 +26,7 @@ async function loadRoute() {
   source = source.replace("import { MongoClient } from 'mongodb'", `import { MongoClient as OriginalClient } from '${pathToFileURL(require.resolve('mongodb')).href}'; class MongoClient extends OriginalClient { constructor(...args) { super(...args); globalThis.__vewTestClients.push(this) } }`)
   source = source.replace("import { v4 as uuidv4 } from 'uuid'", "import { randomUUID as uuidv4 } from 'node:crypto'")
   source = source.replace("import { handleAuth } from '@/lib/server/auth.mjs'", 'const handleAuth = globalThis.__vewTestAuth')
+  source = source.replace("import { deliverRfqReceipt } from '@/lib/server/business-email.mjs'", 'const deliverRfqReceipt = async rfq => { if (globalThis.__vewReceiptFail) throw new Error("mock failure"); globalThis.__vewReceipts.push(rfq.customer.email); return "mock-email-id" }')
   source = source.replaceAll("'@/lib/server/", `'${new URL('lib/server/', root).href}`)
   return import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
 }
@@ -41,6 +42,7 @@ async function user(id, role = 'customer', overrides = {}) {
 }
 
 before(async () => {
+  globalThis.__vewReceipts = []
   server = await MongoMemoryServer.create({ instance: { ip: '127.0.0.1' } })
   client = await new MongoClient(server.getUri()).connect()
   db = client.db(process.env.DB_NAME)
@@ -140,6 +142,8 @@ test('RFQ isolation, file ownership, message authorship, pricing and archive per
   const result = await call('rfq','POST',payload,customer.token)
   assert.equal(result.status,200,JSON.stringify(result.body))
   const rfq = result.body.rfq
+  assert.equal(result.body.receiptEmailStatus, 'accepted')
+  assert.ok(globalThis.__vewReceipts.includes(customer.email))
   assert.equal((await call('rfq?email='+customer.email)).status,401)
   assert.equal((await call(`rfq/${rfq.id}`)).status,401)
   assert.equal((await call(`rfq/${rfq.id}`,'GET',undefined,other.token)).status,404)
@@ -174,6 +178,17 @@ test('failed verification delivery is retryable and does not grant a session', a
   assert.equal((await call('auth/signup','POST',data)).status,200)
   assert.ok(messages.some(m=>m.email===data.email&&m.kind==='verify'))
 })
+test('RFQ survives a receipt email failure without asking the customer to resubmit', async () => {
+  globalThis.__vewReceiptFail = true
+  try {
+    const token=signToken({userId:'staff',sessionVersion:0})
+    const r=await call('rfq','POST',{gearType:'Spur Gear',general:{quantity:'1'},customer:{email:'receipt@example.com'},files:[]},token)
+    assert.equal(r.status,200)
+    assert.equal(r.body.success,true)
+    assert.equal(r.body.receiptEmailStatus,'failed')
+    assert.ok(await db.collection('rfqs').findOne({id:r.body.rfq.id}))
+  } finally { globalThis.__vewReceiptFail=false }
+})
 test('rate limits persist in database and malformed JSON returns 400', async () => {
   for (let i=0;i<12;i++) await call('auth/login','POST',{identifier:'rate@example.com',password:'wrong'})
   assert.equal((await call('auth/login','POST',{identifier:'rate@example.com',password:'wrong'})).status,429)
@@ -183,4 +198,22 @@ test('rate limits persist in database and malformed JSON returns 400', async () 
 test('email delivery fails closed when provider or trusted site URL is absent', () => {
   delete process.env.APP_URL; delete process.env.RESEND_API_KEY; delete process.env.EMAIL_FROM
   assert.throws(()=>emailSettings(), {code:'EMAIL_CONFIGURATION'})
+})
+test('company/order routes use the real API authentication and cannot bypass customer isolation', async () => {
+  const staff=signToken({userId:'staff',sessionVersion:0})
+  const customer=signToken({userId:'rfqcustomer',sessionVersion:0})
+  assert.equal((await call('orders')).status,401)
+  assert.equal((await call('admin/companies/unknown/members','GET',undefined,customer)).status,403)
+  assert.equal((await call('admin/companies','POST',{name:'Bulk route test'},staff)).status,200)
+  const company=(await call('companies','GET',undefined,staff)).body.companies.find(c=>c.name==='Bulk route test')
+  const created=await call('orders','POST',{companyId:company.id,items:[{name:'Test gear',quantity:12}],internalNotes:'PRIVATE'},staff)
+  assert.equal(created.status,200,JSON.stringify(created.body))
+  assert.deepEqual((await call('orders','GET',undefined,customer)).body.orders,[])
+  await db.collection('companyMembers').insertOne({id:'route-membership',userId:'rfqcustomer',companyId:company.id,status:'active'})
+  const shared=(await call('orders','GET',undefined,customer)).body.orders
+  assert.equal(shared[0].id,created.body.order.id)
+  assert.equal(shared[0].internalNotes,undefined)
+  assert.equal((await call(`orders/${created.body.order.id}`,'DELETE',undefined,customer)).status,403)
+  assert.equal((await call(`admin/companies/${company.id}/members/route-membership`,'DELETE',undefined,staff)).status,200)
+  assert.deepEqual((await call('orders','GET',undefined,customer)).body.orders,[])
 })

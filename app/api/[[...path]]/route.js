@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
-import { HttpError, text, email, password, hashPassword, verifyPassword, signToken, getAuthUser, isStaff, isOwner, safeUser, safeRfq, canReadRfq, rateLimit, ownerEmail } from '@/lib/server/security.mjs'
+import { HttpError, text, email, password, hashPassword, signToken, getAuthUser, isStaff, isOwner, safeUser, safeRfq, canReadRfq, rateLimit, ownerEmail } from '@/lib/server/security.mjs'
 import { handleAuth } from '@/lib/server/auth.mjs'
 import { handleManagement } from '@/lib/server/management.mjs'
+import { handleCompanyOrders } from '@/lib/server/company-orders.mjs'
+import { deliverRfqReceipt } from '@/lib/server/business-email.mjs'
 
 let connection
 async function getDb() {
@@ -64,10 +66,11 @@ function mockSendEmail() { return { mocked: true } }
 function normalizePhone(p) {
   return text(p, 40).replace(/\D/g, '')
 }
-function isEmail(s) { return /@/.test(s || '') }
-function isPhone(s) { return /^\+?[\d\s\-()]+$/.test((s || '').trim()) && normalizePhone(s).length >= 6 }
 
 async function ensureSeed(db) {
+  await db.collection('companyMembers').createIndex({ userId: 1, status: 1 })
+  await db.collection('companyMembers').createIndex({ companyId: 1 })
+  await db.collection('orders').createIndex({ companyId: 1, createdAt: -1 })
   await db.collection('rateLimits').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
   await db.collection('users').createIndex({ email: 1 }, { unique: true })
   const s = await db.collection('_meta').findOne({ key: 'seeded_v2' })
@@ -120,8 +123,7 @@ function newProductionStages() {
 }
 
 // === HANDLER ===
-async function handler(request, ctx) {
-  try {
+async function dispatchRequest(request, ctx) {
     if (['POST','PATCH','PUT'].includes(request.method)) {
       if (Number(request.headers.get('content-length')) > 3_800_000) throw new HttpError(413, 'Request is too large. Keep attachments under 2.5 MB.')
       const raw = await request.clone().text()
@@ -140,6 +142,8 @@ async function handler(request, ctx) {
     const authentication = await handleAuth(route, request, db)
     if (authentication) return json(authentication.data, authentication.status)
     const me = await getAuthUser(request, db)
+    const companyOrders = await handleCompanyOrders(route, request, db, me)
+    if (companyOrders) return json(companyOrders)
     const management = await handleManagement(route, request, db, me)
     if (management) return json(management)
     // Deny every nested RFQ/file route unless the caller owns the record or is staff.
@@ -203,18 +207,20 @@ async function handler(request, ctx) {
         messages: [], createdAt: now, updatedAt: now,
       }
       await db.collection('rfqs').insertOne(doc)
-      mockSendEmail({
-        to: customer.email,
-        subject: `RFQ ${rfqNumber} received — Vijaya Engineering Works`,
-        body: `Thank you ${customer.firstName || ''}, we have received your RFQ ${rfqNumber} for ${b.gearType}. Our engineering team will review it shortly.`
-      })
+      let receiptEmailStatus = 'accepted'
+      try { await deliverRfqReceipt(doc) } catch {
+        receiptEmailStatus = 'failed'
+        console.error('RFQ receipt email failed', { code: 'EMAIL_DELIVERY', rfqId: doc.id })
+      }
+      // The request is already saved. Email/provider failures must never invite duplicate orders.
+      doc.receiptEmailStatus = receiptEmailStatus
+      try { await db.collection('rfqs').updateOne({ id: doc.id }, { $set: { receiptEmailStatus } }) }
+      catch { console.error('RFQ receipt status could not be saved', { rfqId: doc.id }) }
       const { _id, ...rest } = doc
-      return json({ success: true, rfq: rest })
+      return json({ success: true, rfq: rest, receiptEmailStatus })
     }
 
     if (route === 'rfq' && method === 'GET') {
-      const url = new URL(request.url)
-      const email = url.searchParams.get('email')
       let query = {}
       if (me && me.role === 'customer') {
         // Customer can only see their own (by userId or matching email)
@@ -502,6 +508,12 @@ async function handler(request, ctx) {
     }
 
     return json({ error: 'Not found', route, method }, 404)
+}
+
+// Keep response/error translation separate from request validation and dispatch.
+async function handler(request, ctx) {
+  try {
+    return await dispatchRequest(request, ctx)
   } catch (err) {
     const code = err.code
     if (err instanceof HttpError) return json({ error: err.message, code: err.code }, err.status)

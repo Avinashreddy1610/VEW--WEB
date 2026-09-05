@@ -34,4 +34,13 @@ This script uses `onboarding@resend.dev`, Resend's testing sender, which can onl
 
 To add a manager, ask them to register and verify their email, then add their email in Managers. Removing manager access returns them to a customer account and revokes their sessions. Company/RFQ deletion archives records to preserve business history. Customer deletion disables access and retains RFQ history. Existing company details stored on RFQs remain available there; the Companies tab maintains a separate editable contact directory.
 
-Only verification and password-reset emails are implemented. RFQ/production notifications are not sent; the UI does not claim they are. Contact enquiries open the visitor's email application for review and sending.
+Verification, password-reset, company-invitation and RFQ-receipt emails are implemented. Resend accepting an email is not proof of inbox delivery; the domain still needs valid SPF/DKIM/DMARC. RFQ receipts include the reference, product, quantity and follow-up email, and use an idempotency key. An email failure never rolls back an RFQ or tells a customer to submit it again. RFQ status-change and production-stage emails are not sent. Contact enquiries open the visitor's email application for review and sending.
+
+## Companies and bulk orders
+
+1. In Companies, create the company profile and delivery address.
+2. Open Contacts & invitations and invite each customer email. Multiple contacts can share one company, and a contact may belong to multiple companies. New contacts choose their own password through a seven-day invitation; existing contacts sign in with their unchanged password. Pending/expired invitations can be sent again after a one-minute cooldown. Revoking a contact removes only that company's access; it does not delete the account.
+3. In Bulk Orders, select the company, enter the customer PO/reference, and add products received by email, phone or directly. Each product has its own part number, quantity, target delivery, customer-visible notes and independent production stages. Use Not required for skipped stages.
+4. Customers see company orders in their portal. Customer/company membership does not grant access to another contact's individual RFQs. Internal order and company notes are excluded from customer API responses.
+
+Owner and managers can edit orders and contacts; only the owner can manage managers. Editing uses a version check to prevent overwriting another staff member's changes. Existing products and whole orders are archived instead of erased. Archiving a company removes customer access to its orders while preserving records. No bulk-order emails or automatic email-to-order import is performed: staff enter orders received by email. Customer order lists refresh every 20 seconds. Invitation links are kept in URL fragments and never logged by the app. The amber gear browser icon is served by Next.js from `app/icon.svg`.

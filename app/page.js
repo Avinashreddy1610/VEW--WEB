@@ -13,13 +13,14 @@ import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { ManagerManagement, CompanyManagement } from '@/components/management-panels'
+import { CompanyOrders, CompanyInvitation } from '@/components/company-orders'
 const isStaff = user => ['owner', 'manager'].includes(user?.role)
 import {
   Cog, Wrench, Factory, Ruler, ShieldCheck, Upload, FileText, Trash2, ArrowRight, ArrowLeft,
-  CheckCircle2, Menu, X, Mail, Phone, MapPin, ClipboardList, LayoutDashboard, Search,
+  CheckCircle2, Menu, X, Mail, Phone, MapPin, ClipboardList, Search,
   Package, TrendingUp, Send, Download, RefreshCw, Building2, LogIn, LogOut, User, UserPlus,
-  Circle, Loader2, Pencil, Save, FileDown, Sparkles, Boxes, ChevronRight,
-  Hammer, Flame, Layers, Wind, Truck, Award, Zap
+  Circle, Loader2, Pencil, Save, FileDown, Sparkles, Boxes,
+  Hammer, Flame, Layers, Wind, Truck, Award
 } from 'lucide-react'
 
 // ============== IMAGES ==============
@@ -578,7 +579,7 @@ function ProductDetail({ productKey, setRoute, cms }) {
       <section className="container mx-auto px-4 pb-20">
         <h3 className="font-bold text-slate-900 mb-6 text-2xl">Gallery</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {GALLERY.slice(0, 4).map((g, i) => <motion.img key={i} src={g} className="aspect-square object-cover rounded-xl" whileHover={{ scale: 1.03 }} />)}
+          {GALLERY.slice(0, 4).map((g, i) => <motion.img key={i} src={g} alt={`Gear manufacturing gallery image ${i + 1}`} className="aspect-square object-cover rounded-xl" whileHover={{ scale: 1.03 }} />)}
         </div>
       </section>
     </div>
@@ -624,7 +625,7 @@ function GalleryPage() {
       <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {GALLERY.concat([HERO_IMG, IMG_CNC, IMG_CNC2]).map((g, i) => (
           <motion.div key={i} variants={fadeUp} whileHover={{ scale: 1.03 }} className="aspect-square rounded-2xl overflow-hidden bg-slate-900 shadow-lg">
-            <img src={g} className="w-full h-full object-cover" />
+            <img src={g} alt={`Gear and machining gallery image ${i + 1}`} className="w-full h-full object-cover" />
           </motion.div>
         ))}
       </motion.div>
@@ -691,7 +692,7 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
     try {
       const r = await fetch('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token }) })
       const d = await r.json()
-      if (!r.ok) throw new Error(d.error)
+      if (!r.ok) { setActionError(d.error || 'Email verification failed'); return }
       setActionMessage(d.message)
     } catch (e) { setActionError(e.message) } finally { setLoading(false) }
   }
@@ -702,7 +703,7 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
     setLoading(true)
     try {
       const r = await fetch('/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
-      const d = await r.json(); if (!r.ok) throw new Error(d.error)
+      const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to resend verification'); return }
       setMode('verification-sent'); setActionMessage(d.message)
     } catch (e) { toast.error(e.message) } finally { setLoading(false) }
   }
@@ -717,7 +718,8 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
           setWelcome({ name: u.firstName || 'there', isNew: false, role: u.role })
         } catch (error) {
           if (error.code === 'EMAIL_NOT_VERIFIED') { setForm({ ...form, email: form.identifier.includes('@') ? form.identifier : '' }); setMode('unverified'); return }
-          throw error
+          toast.error(error.message)
+          return
         }
       } else if (mode === 'signup') {
         if (!form.email || !form.phone) { toast.error('Email and phone are both required'); setLoading(false); return }
@@ -725,12 +727,12 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
         setActionMessage(d.message); setMode('verification-sent')
       } else if (mode === 'forgot') {
         const r = await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: form.identifier }) })
-        const d = await r.json(); if (!r.ok) throw new Error(d.error)
+        const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to request password reset'); return }
         setActionMessage(d.message); setMode('reset-sent')
       } else if (mode === 'reset') {
-        if (form.password !== form.confirmPassword) throw new Error('Passwords do not match')
+        if (form.password !== form.confirmPassword) { toast.error('Passwords do not match'); return }
         const r = await fetch('/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token, password: form.password }) })
-        const d = await r.json(); if (!r.ok) throw new Error(d.error)
+        const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to reset password'); return }
         auth.logout(); toast.success(d.message); clearAuthAction?.(); setForm({ ...form, password: '', confirmPassword: '' }); setMode('login')
       }
     } catch (e) { toast.error(e.message) } finally { setLoading(false) }
@@ -1034,7 +1036,7 @@ function RfqWizard({ setRoute, prefill, auth }) {
     try {
       let savedFiles = []
       if (files.length) {
-        const r = await api(auth.token).post('/api/upload', { files }); if (r.error) throw new Error(r.error)
+        const r = await api(auth.token).post('/api/upload', { files }); if (r.error) { toast.error(r.error); return }
         savedFiles = r.files || []
       }
       const r = await api(auth.token).post('/api/rfq', { gearType, specifications: specs, general, files: savedFiles, customer: { ...customer, email: (customer.email || '').toLowerCase() }, notes })
@@ -1049,7 +1051,8 @@ function RfqWizard({ setRoute, prefill, auth }) {
       <h1 className="text-4xl font-bold text-slate-900 mb-3 tracking-tight">Thank you.</h1>
       <p className="text-slate-600 mb-2">Your RFQ number:</p>
       <div className="text-3xl font-bold tracking-wider text-amber-600 mb-6">{submitted.rfqNumber}</div>
-      <p className="text-slate-600 mb-8">Our engineering team will review your request shortly. Track its progress in your portal.</p>
+      <p className="text-slate-600 mb-4">Our engineering team will review your request and reach out to <strong>{submitted.customer.email}</strong> with the next steps. Track its progress in your portal.</p>
+      <p role="status" className="text-sm text-slate-600 mb-8">{submitted.receiptEmailStatus==='accepted'?'Your confirmation email has been submitted for delivery. Check your inbox and spam folder.':'Your request is safely saved, but the confirmation email could not be sent. There is no need to submit your request again.'}</p>
       <div className="flex gap-3 justify-center flex-wrap">
         <Button onClick={() => setRoute('portal')} className="bg-slate-900 hover:bg-slate-800 rounded-full">View in Portal</Button>
         <Button variant="outline" onClick={() => setRoute('home')} className="rounded-full">Back to Home</Button>
@@ -1222,6 +1225,8 @@ function CustomerPortal({ auth, setRoute }) {
           <Button onClick={() => setRoute('rfq')} className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-full">New RFQ</Button>
         </div>
       </div>
+      <CompanyOrders auth={auth} />
+      <h2 className="text-2xl font-bold mb-4">Your individual RFQs</h2>
       {loading && !rfqs.length ? <div>Loading...</div> : rfqs.length === 0 ? (
         <Card><CardContent className="p-16 text-center text-slate-500">No RFQs yet. <button onClick={() => setRoute('rfq')} className="text-amber-600 font-semibold">Submit your first RFQ</button></CardContent></Card>
       ) : (
@@ -1249,13 +1254,13 @@ function CustomerPortal({ auth, setRoute }) {
           ))}
         </motion.div>
       )}
-      <RfqDetailDialog rfq={selected} onClose={() => setSelected(null)} onUpdated={load} auth={auth} asCustomer />
+      <RfqDetailDialog rfq={selected} onClose={() => setSelected(null)} onUpdated={load} auth={auth} />
     </div>
   )
 }
 
 // ============== RFQ DETAIL DIALOG ==============
-function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, cms }) {
+function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asAdmin, cms }) {
   const [current, setCurrent] = useState(rfq)
   const [msgText, setMsgText] = useState('')
   const [newStatus, setNewStatus] = useState(rfq?.status || '')
@@ -1519,7 +1524,7 @@ function AdminDashboard({ auth, cms, reloadCms }) {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="mb-6">
-        <TabsList className="flex h-auto flex-wrap"><TabsTrigger value="rfqs">RFQs</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="companies">Companies</TabsTrigger><TabsTrigger value="cms">Content Editor</TabsTrigger>{auth.user?.role === 'owner' && <TabsTrigger value="managers">Managers</TabsTrigger>}</TabsList>
+        <TabsList className="flex h-auto flex-wrap"><TabsTrigger value="rfqs">RFQs</TabsTrigger><TabsTrigger value="orders">Bulk Orders</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="companies">Companies</TabsTrigger><TabsTrigger value="cms">Content Editor</TabsTrigger>{auth.user?.role === 'owner' && <TabsTrigger value="managers">Managers</TabsTrigger>}</TabsList>
         <TabsContent value="rfqs">
           {stats && <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {[
@@ -1570,6 +1575,7 @@ function AdminDashboard({ auth, cms, reloadCms }) {
             {!filtered.length && <Card><CardContent className="p-12 text-center text-slate-500">No RFQs match.</CardContent></Card>}
           </motion.div>
         </TabsContent>
+        <TabsContent value="orders"><CompanyOrders auth={auth} staff /></TabsContent>
         <TabsContent value="companies"><CompanyManagement auth={auth} /></TabsContent>
         {auth.user?.role === 'owner' && <TabsContent value="managers"><ManagerManagement auth={auth} /></TabsContent>}
         <TabsContent value="cms"><CmsEditor auth={auth} cms={cms} reloadCms={reloadCms} /></TabsContent>
@@ -1634,7 +1640,6 @@ function App() {
   const [route, setRoute] = useState('home')
   const [authAction, setAuthAction] = useState(null)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [reorderPrefill, setReorderPrefill] = useState(null)
   const [cms, setCms] = useState(null)
   const [signoutOpen, setSignoutOpen] = useState(false)
 
@@ -1645,9 +1650,11 @@ function App() {
     const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search)
     const verifyToken = params.get('verify')
     const resetToken = params.get('reset')
-    if (verifyToken || resetToken) window.history.replaceState({}, '', window.location.pathname)
+    const inviteToken = params.get('invite')
+    if (verifyToken || resetToken || inviteToken) window.history.replaceState({}, '', window.location.pathname)
     if (verifyToken) { setAuthAction({ type: 'verify', token: verifyToken }); setRoute('login') }
     else if (resetToken) { setAuthAction({ type: 'reset', token: resetToken }); setRoute('login') }
+    else if (inviteToken) { setAuthAction({ type: 'invite', token: inviteToken }); setRoute('invite') }
   }, [])
 
   const clearAuthAction = () => {
@@ -1682,6 +1689,7 @@ function App() {
 
   let content
   if (route === 'admin' && !isStaff(auth.user)) content = <LoginPage setRoute={goRoute} auth={auth} />
+  else if (route === 'invite' && authAction?.type === 'invite') content = <CompanyInvitation token={authAction.token} auth={auth} onDone={() => { clearAuthAction(); setRoute('portal') }} onSignIn={() => { clearAuthAction(); setRoute('login') }} />
   else if (route === 'home') content = <HomePage setRoute={goRoute} cms={cms} />
   else if (route === 'products') content = <ProductsPage setRoute={goRoute} cms={cms} />
   else if (route.startsWith('product:')) content = <ProductDetail productKey={route.slice(8)} setRoute={goRoute} cms={cms} />
@@ -1689,7 +1697,7 @@ function App() {
   else if (route === 'gallery') content = <GalleryPage />
   else if (route === 'about') content = <AboutPage cms={cms} />
   else if (route === 'contact') content = <ContactPage cms={cms} />
-  else if (route === 'rfq') content = <RfqWizard setRoute={goRoute} prefill={reorderPrefill} auth={auth} />
+  else if (route === 'rfq') content = <RfqWizard setRoute={goRoute} auth={auth} />
   else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} authAction={authAction} clearAuthAction={clearAuthAction} />
   else if (route === 'portal') content = <CustomerPortal auth={auth} setRoute={goRoute} />
   else if (route === 'admin') content = <AdminDashboard auth={auth} cms={cms} reloadCms={loadCms} />
