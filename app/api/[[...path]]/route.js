@@ -1,92 +1,78 @@
 import { NextResponse } from 'next/server'
 import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
-import crypto from 'crypto'
+import { HttpError, text, email, password, hashPassword, verifyPassword, signToken, getAuthUser, isStaff, isOwner, safeUser, safeRfq, canReadRfq, rateLimit, ownerEmail } from '@/lib/server/security.mjs'
+import { handleAuth } from '@/lib/server/auth.mjs'
+import { handleManagement } from '@/lib/server/management.mjs'
 
-const MONGO_URL = process.env.MONGO_URL
-const DB_NAME = process.env.DB_NAME || 'vew_gears'
-const SECRET = process.env.AUTH_SECRET || 'vew-gears-secret-2026'
-
-let client, db
+let connection
 async function getDb() {
-  if (db) return db
-  client = new MongoClient(MONGO_URL)
-  await client.connect()
-  db = client.db(DB_NAME)
-  await ensureSeed(db)
-  return db
+  if (!connection) {
+    connection = (async () => {
+      const uri = process.env.MONGO_URL || process.env.MONGODB_URI
+      if (typeof uri !== 'string' || !/^mongodb(\+srv)?:\/\//.test(uri)) {
+        throw new HttpError(503, 'The database connection is not configured. Please contact the site owner.', 'DATABASE_CONFIGURATION')
+      }
+      const client = new MongoClient(uri, { maxPoolSize: 10, serverSelectionTimeoutMS: 8000 })
+      try {
+        await client.connect()
+        const db = client.db(process.env.DB_NAME || 'vew_gears')
+        await ensureSeed(db)
+        return db
+      } catch (error) { await client.close(); throw error }
+    })().catch(error => { connection = null; throw error })
+  }
+  return connection
 }
-function json(data, s = 200) { return NextResponse.json(data, { status: s }) }
-
-// === Auth utilities ===
-function hashPassword(pw) {
-  const salt = crypto.randomBytes(16).toString('hex')
-  const hash = crypto.scryptSync(pw, salt, 64).toString('hex')
-  return `${salt}:${hash}`
+function json(data, status = 200) {
+  return NextResponse.json(data, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
 }
-function verifyPassword(pw, stored) {
-  if (!stored) return false
-  const [salt, hash] = stored.split(':')
-  const test = crypto.scryptSync(pw, salt, 64).toString('hex')
-  return crypto.timingSafeEqual(Buffer.from(test), Buffer.from(hash))
+function cleanFields(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(Object.entries(value).filter(([key]) => /^[a-zA-Z][a-zA-Z0-9_]{0,60}$/.test(key) && !['constructor','prototype'].includes(key)).slice(0, 80).map(([key, v]) => [key, typeof v === 'number' && Number.isFinite(v) ? String(v) : text(v, 5000)]))
 }
-function signToken(payload) {
-  const data = Buffer.from(JSON.stringify({ ...payload, iat: Date.now() })).toString('base64url')
-  const sig = crypto.createHmac('sha256', SECRET).update(data).digest('base64url')
-  return `${data}.${sig}`
+function validatedPricing(value) {
+  if (!value || typeof value !== 'object') throw new HttpError(400, 'Invalid quote pricing')
+  const p = {}
+  for (const key of ['unitPrice','quantity','tooling','engineering','shipping','tax']) {
+    p[key] = Number(value[key] || 0)
+    if (!Number.isFinite(p[key]) || p[key] < 0 || p[key] > 1e9) throw new HttpError(400, 'Pricing values must be valid nonnegative numbers')
+  }
+  p.total = p.unitPrice * p.quantity + p.tooling + p.engineering + p.shipping + p.tax
+  p.paymentTerms = text(value.paymentTerms); p.validity = text(value.validity)
+  return p
 }
-function verifyToken(token) {
-  if (!token) return null
-  const [data, sig] = token.split('.')
-  if (!data || !sig) return null
-  const expected = crypto.createHmac('sha256', SECRET).update(data).digest('base64url')
-  if (sig !== expected) return null
-  try { return JSON.parse(Buffer.from(data, 'base64url').toString()) } catch { return null }
-}
-async function getAuthUser(request, db) {
-  const auth = request.headers.get('authorization') || ''
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null
-  const p = verifyToken(token)
-  if (!p?.userId) return null
-  const u = await db.collection('users').findOne({ id: p.userId })
-  if (!u) return null
-  const { passwordHash, _id, ...safe } = u
-  if (p.impersonatedBy) safe._impersonatedBy = p.impersonatedByEmail || 'admin'
-  return safe
+async function ownedFiles(db, me, files = []) {
+  if (!Array.isArray(files) || files.length > 5) throw new HttpError(400, 'Invalid attachments')
+  const result = []
+  for (const file of files) {
+    const record = await db.collection('files').findOne({ id: text(file?.id), userId: me.id })
+    if (!record) throw new HttpError(400, 'Attachment is unavailable; please upload it again')
+    result.push({ id: record.id, name: record.name, type: record.type, size: record.size })
+  }
+  return result
 }
 
 // === Constants ===
 const PRODUCTION_STAGES = ['Raw Material','Drawing','Turning','Gear Cutting','Heat Treatment','Jig Boring','Lapping','Sand Blasting','Grinding','Dispatched']
 const RFQ_STATUSES = ['Submitted','Under Review','Engineering Review','Need More Information','Quote Prepared','Quote Sent','Customer Approved','Order Confirmed','In Production','Quality Inspection','Ready to Ship','Shipped','Completed','Cancelled']
 
-// === Mock email ===
-function mockSendEmail({ to, subject, body }) {
-  const line = `\n📧 MOCKED EMAIL → to: ${to} | subject: "${subject}"\n   ${body}\n`
-  console.log(line)
-  return { mocked: true, to, subject }
-}
+// Business notifications still require a separately configured workflow.
+function mockSendEmail() { return { mocked: true } }
 
 // === Seed ===
 function normalizePhone(p) {
-  return (p || '').replace(/\D/g, '')
+  return text(p, 40).replace(/\D/g, '')
 }
 function isEmail(s) { return /@/.test(s || '') }
 function isPhone(s) { return /^\+?[\d\s\-()]+$/.test((s || '').trim()) && normalizePhone(s).length >= 6 }
 
 async function ensureSeed(db) {
+  await db.collection('rateLimits').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
+  await db.collection('users').createIndex({ email: 1 }, { unique: true })
   const s = await db.collection('_meta').findOne({ key: 'seeded_v2' })
   if (s) return
   const now = new Date().toISOString()
-
-  // Admin user
-  const existing = await db.collection('users').findOne({ email: 'admin@vew.com' })
-  if (!existing) {
-    await db.collection('users').insertOne({
-      id: uuidv4(), fullName: 'VEW Admin', companyName: 'Vijaya Engineering Works',
-      email: 'admin@vew.com', passwordHash: hashPassword('admin123'), role: 'admin',
-      isActive: true, createdAt: now,
-    })
-  }
 
   // Default CMS content
   await db.collection('cms').updateOne({ key: 'site' }, {
@@ -113,13 +99,17 @@ async function ensureSeed(db) {
 
   await db.collection('rfqs').createIndex({ 'customer.email': 1 })
   await db.collection('users').createIndex({ email: 1 }, { unique: true })
-  await db.collection('_meta').insertOne({ key: 'seeded_v2', at: now })
+  await db.collection('_meta').updateOne({ _id: 'seeded_v2' }, { $set: { key: 'seeded_v2', at: now } }, { upsert: true })
 }
 
 async function generateRfqNumber(db) {
   const year = new Date().getFullYear()
-  const count = await db.collection('rfqs').countDocuments({ year })
-  return `RFQ-${year}-${String(count + 1).padStart(6, '0')}`
+  const latest = await db.collection('rfqs').find({ year }).sort({ rfqNumber: -1 }).limit(1).toArray()
+  const previous = Number(latest[0]?.rfqNumber?.split('-').pop()) || 0
+  try { await db.collection('counters').updateOne({ _id: `rfq-${year}` }, { $max: { value: previous } }, { upsert: true }) }
+  catch (error) { if (error.code !== 11000) throw error }
+  const counter = await db.collection('counters').findOneAndUpdate({ _id: `rfq-${year}` }, { $inc: { value: 1 } }, { returnDocument: 'after' })
+  return `RFQ-${year}-${String(counter.value).padStart(6, '0')}`
 }
 
 function newProductionStages() {
@@ -132,6 +122,13 @@ function newProductionStages() {
 // === HANDLER ===
 async function handler(request, ctx) {
   try {
+    if (['POST','PATCH','PUT'].includes(request.method)) {
+      if (Number(request.headers.get('content-length')) > 3_800_000) throw new HttpError(413, 'Request is too large. Keep attachments under 2.5 MB.')
+      const raw = await request.clone().text()
+      if (Buffer.byteLength(raw) > 3_800_000) throw new HttpError(413, 'Request is too large. Keep attachments under 2.5 MB.')
+      const body = JSON.parse(raw)
+      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'Request must contain an object')
+    }
     const db = await getDb()
     const method = request.method
     const p = await ctx.params
@@ -140,67 +137,19 @@ async function handler(request, ctx) {
 
     if (route === '' || route === 'health') return json({ status: 'ok', service: 'VEW API' })
 
-    // ==== AUTH ====
-    if (route === 'auth/signup' && method === 'POST') {
-      const b = await request.json()
-      if (!b.email || !b.password || !b.firstName || !b.lastName) return json({ error: 'Missing fields' }, 400)
-      const email = b.email.toLowerCase()
-      const phoneNorm = normalizePhone(b.phone)
-      const exists = await db.collection('users').findOne({ $or: [{ email }, ...(phoneNorm ? [{ phoneNorm }] : [])] })
-      if (exists) return json({ error: exists.email === email ? 'Email already registered' : 'Phone number already registered' }, 400)
-      const u = {
-        id: uuidv4(), email, phone: b.phone || '', phoneNorm,
-        passwordHash: hashPassword(b.password),
-        firstName: b.firstName, lastName: b.lastName, companyName: b.companyName || '',
-        role: 'customer', isActive: true, createdAt: new Date().toISOString(), lastLoginAt: null,
-      }
-      await db.collection('users').insertOne(u)
-      mockSendEmail({ to: email, subject: 'Welcome to Vijaya Engineering Works', body: `Hello ${b.firstName}, your VEW customer account has been created.` })
-      const token = signToken({ userId: u.id, role: u.role })
-      const { passwordHash, ...safe } = u
-      return json({ token, user: safe })
-    }
-
-    if (route === 'auth/login' && method === 'POST') {
-      const b = await request.json()
-      const identifier = (b.identifier || b.email || '').trim()
-      if (!identifier || !b.password) return json({ error: 'Missing credentials' }, 400)
-      let user
-      if (isEmail(identifier)) {
-        user = await db.collection('users').findOne({ email: identifier.toLowerCase(), isActive: true })
-      } else {
-        const pn = normalizePhone(identifier)
-        if (pn.length < 6) return json({ error: 'Invalid identifier' }, 400)
-        // Try exact match, then suffix match (handle country codes)
-        user = await db.collection('users').findOne({ phoneNorm: pn, isActive: true })
-        if (!user) {
-          const suffix = pn.slice(-10)
-          user = await db.collection('users').findOne({ phoneNorm: { $regex: suffix + '$' }, isActive: true })
-        }
-      }
-      if (!user || !verifyPassword(b.password, user.passwordHash)) return json({ error: 'Invalid credentials or account disabled' }, 401)
-      await db.collection('users').updateOne({ id: user.id }, { $set: { lastLoginAt: new Date().toISOString() } })
-      const token = signToken({ userId: user.id, role: user.role })
-      const { passwordHash, _id, ...safe } = user
-      return json({ token, user: safe })
-    }
-
-    // Forgot password (mocked — sends a reset link)
-    if (route === 'auth/forgot' && method === 'POST') {
-      const b = await request.json()
-      const identifier = (b.identifier || '').trim()
-      let user
-      if (isEmail(identifier)) user = await db.collection('users').findOne({ email: identifier.toLowerCase() })
-      else user = await db.collection('users').findOne({ phoneNorm: normalizePhone(identifier) })
-      // Always return success (don't leak which accounts exist)
-      if (user) {
-        const tempToken = signToken({ resetUserId: user.id })
-        mockSendEmail({ to: user.email, subject: 'VEW · Password Reset', body: `Reset your password: /reset?token=${tempToken.slice(0, 40)}...` })
-      }
-      return json({ success: true, message: 'If an account exists, reset instructions were sent.' })
-    }
-
+    const authentication = await handleAuth(route, request, db)
+    if (authentication) return json(authentication.data, authentication.status)
     const me = await getAuthUser(request, db)
+    const management = await handleManagement(route, request, db, me)
+    if (management) return json(management)
+    // Deny every nested RFQ/file route unless the caller owns the record or is staff.
+    if (route.startsWith('rfq/') || route.startsWith('files/') || route === 'upload') {
+      if (!me) return json({ error: 'Please sign in to continue' }, 401)
+    }
+    if (route.startsWith('rfq/')) {
+      const record = await db.collection('rfqs').findOne({ $or: [{ id: path[1] }, { rfqNumber: path[1] }] })
+      if (!canReadRfq(me, record)) return json({ error: 'RFQ not found' }, 404)
+    }
 
     if (route === 'auth/me' && method === 'GET') {
       if (!me) return json({ error: 'Unauthorized' }, 401)
@@ -213,8 +162,12 @@ async function handler(request, ctx) {
       return json({ cms: doc })
     }
     if (route === 'cms' && method === 'PATCH') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
-      const b = await request.json()
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
+      const body = await request.json()
+      const b = Object.fromEntries(['companyName','tagline','email','phone','address','hours','aboutTitle','aboutText'].filter(k => body[k] !== undefined).map(k => [k, text(body[k], 10000)]))
+      if (body.productDescriptions && typeof body.productDescriptions === 'object') {
+        b.productDescriptions = Object.fromEntries(['spiral-bevel','spiral-bevel-pinion','helical','spur','gear-sets'].map(k => [k, text(body.productDescriptions[k], 5000)]))
+      }
       b.updatedAt = new Date().toISOString()
       await db.collection('cms').updateOne({ key: 'site' }, { $set: b })
       return json({ success: true })
@@ -223,6 +176,8 @@ async function handler(request, ctx) {
     // ==== RFQ ====
     if (route === 'rfq' && method === 'POST') {
       const b = await request.json()
+      if (!me) return json({ error: 'Please create and verify an account before submitting a quote request' }, 401)
+      if (!text(b.gearType) || !b.general || !b.customer || !Number.isFinite(Number(b.general.quantity)) || Number(b.general.quantity) <= 0) return json({ error: 'Gear type, positive quantity and customer details are required' }, 400)
       const rfqNumber = await generateRfqNumber(db)
       const now = new Date().toISOString()
       // If authed customer, link to their account
@@ -234,14 +189,14 @@ async function handler(request, ctx) {
         customer.companyName = customer.companyName || me.companyName
         customer.phone = customer.phone || me.phone
       }
-      customer.email = (customer.email || '').toLowerCase()
+      customer.email = email(customer.email)
 
       const doc = {
         id: uuidv4(), rfqNumber, year: new Date().getFullYear(),
         userId: me?.id || null,
-        gearType: b.gearType || '', specifications: b.specifications || {},
-        general: b.general || {}, files: b.files || [],
-        customer, notes: b.notes || '',
+        gearType: text(b.gearType), specifications: cleanFields(b.specifications),
+        general: cleanFields(b.general), files: await ownedFiles(db, me, b.files),
+        customer: { ...cleanFields(customer), email: email(customer.email) }, notes: text(b.notes, 10000),
         status: 'Submitted', internalNotes: '', pricing: null, leadTime: '',
         productionStages: newProductionStages(),
         statusHistory: [{ status: 'Submitted', at: now, note: 'RFQ submitted' }],
@@ -264,15 +219,13 @@ async function handler(request, ctx) {
       if (me && me.role === 'customer') {
         // Customer can only see their own (by userId or matching email)
         query = { $or: [{ userId: me.id }, { 'customer.email': me.email }] }
-      } else if (me && me.role === 'admin') {
+      } else if (isStaff(me)) {
         query = {}
-      } else if (email) {
-        query = { 'customer.email': email.toLowerCase() }
       } else {
         return json({ error: 'Unauthorized' }, 401)
       }
-      const rfqs = await db.collection('rfqs').find(query, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray()
-      return json({ rfqs })
+      const rfqs = await db.collection('rfqs').find({ ...query, deletedAt: { $exists: false } }, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray()
+      return json({ rfqs: rfqs.map(r => safeRfq(r, me)) })
     }
 
     if (route.startsWith('rfq/') && path.length === 2 && method === 'GET') {
@@ -288,13 +241,19 @@ async function handler(request, ctx) {
         rfq.productionStages = newProductionStages()
         await db.collection('rfqs').updateOne({ id: rfq.id }, { $set: { productionStages: rfq.productionStages } })
       }
-      return json({ rfq })
+      return json({ rfq: safeRfq(rfq, me) })
     }
 
+    if (route.startsWith('rfq/') && path.length === 2 && method === 'DELETE') {
+      if (!isStaff(me)) return json({ error: 'Staff access required' }, 403)
+      await db.collection('rfqs').updateOne({ id: path[1] }, { $set: { deletedAt: new Date().toISOString(), deletedBy: me.id } })
+      return json({ success: true })
+    }
     if (route.startsWith('rfq/') && path.length === 2 && method === 'PATCH') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const id = path[1]
       const body = await request.json()
+      if (body.status && !RFQ_STATUSES.includes(body.status)) return json({ error: 'Invalid RFQ status' }, 400)
       const rfq = await db.collection('rfqs').findOne({ id })
       if (!rfq) return json({ error: 'Not found' }, 404)
       const now = new Date().toISOString()
@@ -309,9 +268,9 @@ async function handler(request, ctx) {
           body: `Hello ${rfq.customer?.firstName || ''}, your RFQ ${rfq.rfqNumber} is now: ${body.status}. Log in to your portal to view details.`
         })
       }
-      if (body.internalNotes !== undefined) updates.internalNotes = body.internalNotes
-      if (body.pricing !== undefined) updates.pricing = body.pricing
-      if (body.leadTime !== undefined) updates.leadTime = body.leadTime
+      if (body.internalNotes !== undefined) updates.internalNotes = text(body.internalNotes, 10000)
+      if (body.pricing !== undefined) updates.pricing = validatedPricing(body.pricing)
+      if (body.leadTime !== undefined) updates.leadTime = text(body.leadTime)
       const op = { $set: updates }
       if (historyAdd.length) op.$push = { statusHistory: { $each: historyAdd } }
       await db.collection('rfqs').updateOne({ id }, op)
@@ -321,15 +280,15 @@ async function handler(request, ctx) {
 
     // Add / Update / Delete production stages (admin only)
     if (route.match(/^rfq\/[^/]+\/stages$/) && method === 'POST') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const id = path[1]
       const b = await request.json()
-      if (!b.name) return json({ error: 'Stage name required' }, 400)
+      if (!text(b.name, 100)) return json({ error: 'Stage name required' }, 400)
       const rfq = await db.collection('rfqs').findOne({ id })
       if (!rfq) return json({ error: 'Not found' }, 404)
       const stages = rfq.productionStages || []
       const newStage = {
-        id: uuidv4(), name: b.name, sequence: (b.afterSequence != null ? b.afterSequence + 0.5 : stages.length + 1),
+        id: uuidv4(), name: text(b.name, 100), sequence: (Number.isFinite(b.afterSequence) ? b.afterSequence + 0.5 : stages.length + 1),
         status: 'NOT_STARTED', startedAt: null, completedAt: null, notes: b.notes || '',
       }
       stages.push(newStage)
@@ -340,7 +299,7 @@ async function handler(request, ctx) {
     }
 
     if (route.match(/^rfq\/[^/]+\/stages\/[^/]+$/) && method === 'PATCH') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const id = path[1], sid = path[3]
       const b = await request.json()
       const rfq = await db.collection('rfqs').findOne({ id })
@@ -348,14 +307,14 @@ async function handler(request, ctx) {
       const stages = rfq.productionStages || []
       const s = stages.find(x => x.id === sid)
       if (!s) return json({ error: 'Stage not found' }, 404)
-      if (b.name !== undefined) s.name = b.name
-      if (b.notes !== undefined) s.notes = b.notes
+      if (b.name !== undefined) { if (!text(b.name, 100)) throw new HttpError(400, 'Stage name required'); s.name = text(b.name, 100) }
+      if (b.notes !== undefined) s.notes = text(b.notes, 5000)
       await db.collection('rfqs').updateOne({ id }, { $set: { productionStages: stages, updatedAt: new Date().toISOString() } })
       return json({ success: true })
     }
 
     if (route.match(/^rfq\/[^/]+\/stages\/[^/]+$/) && method === 'DELETE') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const id = path[1], sid = path[3]
       const rfq = await db.collection('rfqs').findOne({ id })
       if (!rfq) return json({ error: 'Not found' }, 404)
@@ -366,12 +325,13 @@ async function handler(request, ctx) {
     }
 
     if (route.match(/^rfq\/[^/]+\/stages\/reorder$/) && method === 'PUT') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const id = path[1]
       const b = await request.json()  // { order: [stageId, stageId, ...] }
       const rfq = await db.collection('rfqs').findOne({ id })
       if (!rfq) return json({ error: 'Not found' }, 404)
       const stages = rfq.productionStages || []
+      if (!Array.isArray(b.order) || b.order.length !== stages.length || new Set(b.order).size !== stages.length || b.order.some(id => !stages.some(s => s.id === id))) return json({ error: 'Order must include every stage exactly once' }, 400)
       const stageMap = Object.fromEntries(stages.map(s => [s.id, s]))
       const reordered = (b.order || []).map((sid, i) => stageMap[sid] && ({ ...stageMap[sid], sequence: i + 1 })).filter(Boolean)
       // Include any stages not in the reorder list at the end
@@ -383,7 +343,7 @@ async function handler(request, ctx) {
 
     // Production stage update (admin only)
     if (route.match(/^rfq\/[^/]+\/stage$/) && method === 'PATCH') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const id = path[1]
       const b = await request.json()
       const rfq = await db.collection('rfqs').findOne({ id })
@@ -393,10 +353,11 @@ async function handler(request, ctx) {
       if (idx < 0) return json({ error: 'Stage not found' }, 404)
       const now = new Date().toISOString()
       const s = stages[idx]
+      if (!['NOT_STARTED','IN_PROGRESS','COMPLETED'].includes(b.status)) return json({ error: 'Invalid stage status' }, 400)
       s.status = b.status
       if (b.status === 'IN_PROGRESS' && !s.startedAt) s.startedAt = now
       if (b.status === 'COMPLETED') s.completedAt = now
-      if (b.notes !== undefined) s.notes = b.notes
+      if (b.notes !== undefined) s.notes = text(b.notes, 5000)
       await db.collection('rfqs').updateOne({ id }, { $set: { productionStages: stages, updatedAt: now } })
       // Notify customer on major transitions
       if (['IN_PROGRESS','COMPLETED'].includes(b.status)) {
@@ -412,7 +373,8 @@ async function handler(request, ctx) {
     if (route.match(/^rfq\/[^/]+\/messages$/) && method === 'POST') {
       const id = path[1]
       const b = await request.json()
-      const msg = { id: uuidv4(), from: b.from || (me?.role === 'admin' ? 'admin' : 'customer'), author: b.author || me?.firstName || 'Customer', text: b.text || '', at: new Date().toISOString() }
+      if (!text(b.text, 5000)) return json({ error: 'Message is required' }, 400)
+      const msg = { id: uuidv4(), from: isStaff(me) ? 'admin' : 'customer', author: me.firstName || 'Staff', text: text(b.text, 5000), at: new Date().toISOString() }
       await db.collection('rfqs').updateOne({ id }, { $push: { messages: msg }, $set: { updatedAt: msg.at } })
       return json({ success: true, message: msg })
     }
@@ -421,8 +383,17 @@ async function handler(request, ctx) {
     if (route === 'upload' && method === 'POST') {
       const b = await request.json()
       const saved = []
-      for (const f of b.files || []) {
-        const doc = { id: uuidv4(), name: f.name, type: f.type, size: f.size, dataUrl: f.dataUrl, uploadedAt: new Date().toISOString() }
+      if (!Array.isArray(b.files) || !b.files.length || b.files.length > 5) return json({ error: 'Upload between one and five files' }, 400)
+      await rateLimit(db, `upload:${me.id}`, 30, 3600_000)
+      let total = 0
+      const validated = b.files.map(f => {
+        if (typeof f.dataUrl !== 'string' || !/^data:(application\/pdf|image\/(png|jpeg)|application\/octet-stream);base64,[A-Za-z0-9+/=]+$/.test(f.dataUrl)) throw new HttpError(400, 'Only PDF, PNG, JPG, and binary drawing files are supported')
+        const size = Buffer.byteLength(f.dataUrl.split(',')[1], 'base64')
+        total += size
+        if (total > 2_500_000 || !text(f.name, 200)) throw new HttpError(400, 'Keep total attachments under 2.5 MB')
+        return { id: uuidv4(), userId: me.id, name: text(f.name, 200), type: f.dataUrl.slice(5).split(';')[0], size, dataUrl: f.dataUrl, uploadedAt: new Date().toISOString() }
+      })
+      for (const doc of validated) {
         await db.collection('files').insertOne(doc)
         saved.push({ id: doc.id, name: doc.name, type: doc.type, size: doc.size })
       }
@@ -432,68 +403,94 @@ async function handler(request, ctx) {
       const id = path[1]
       const f = await db.collection('files').findOne({ id })
       if (!f) return json({ error: 'Not found' }, 404)
+      if (!isStaff(me) && f.userId !== me.id) {
+        const linked = await db.collection('rfqs').findOne({ 'files.id': id, deletedAt: { $exists: false }, $or: [{ userId: me.id }, { 'customer.email': me.email }] })
+        if (!linked) return json({ error: 'Not found' }, 404)
+      }
       return json({ id: f.id, name: f.name, type: f.type, size: f.size, dataUrl: f.dataUrl })
     }
 
     // ==== ADMIN USER MANAGEMENT ====
     if (route === 'admin/users' && method === 'GET') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const url = new URL(request.url)
       const q = (url.searchParams.get('q') || '').toLowerCase()
-      const users = await db.collection('users').find({}, { projection: { _id: 0, passwordHash: 0 } }).sort({ createdAt: -1 }).toArray()
+      const users = await db.collection('users').find(isOwner(me) ? {} : { role: 'customer' }).sort({ createdAt: -1 }).toArray()
       // Attach RFQ count
       const rfqs = await db.collection('rfqs').find({}, { projection: { userId: 1, 'customer.email': 1 } }).toArray()
       const enriched = users.map(u => ({
-        ...u,
+        ...safeUser(u),
         rfqCount: rfqs.filter(r => r.userId === u.id || r.customer?.email === u.email).length,
       }))
       const filtered = q ? enriched.filter(u => [u.firstName, u.lastName, u.email, u.phone, u.companyName].filter(Boolean).some(x => x.toLowerCase().includes(q))) : enriched
       return json({ users: filtered })
     }
 
+    if (route.match(/^admin\/users\/[^/]+$/) && ['PATCH','DELETE'].includes(method)) {
+      if (!isStaff(me)) throw new HttpError(403, 'Staff access required')
+      const target = { id: path[2], role: 'customer', email: { $ne: ownerEmail() } }
+      const update = method === 'DELETE'
+        ? { $set: { isActive: false, deletedAt: new Date().toISOString(), deletedBy: me.id }, $inc: { sessionVersion: 1 } }
+        : { $set: Object.fromEntries(['firstName','lastName','companyName','phone'].map(k => [k, ''])) }
+      if (method === 'PATCH') {
+        const body = await request.json()
+        update.$set = Object.fromEntries(['firstName','lastName','companyName','phone'].filter(k => body[k] !== undefined).map(k => [k, text(body[k], 500)]))
+        if (body.phone !== undefined) update.$set.phoneNorm = normalizePhone(body.phone)
+      }
+      const result = await db.collection('users').updateOne(target, update)
+      if (!result.matchedCount) throw new HttpError(403, 'Only customer records can be changed here')
+      return json({ success: true })
+    }
+
     if (route.match(/^admin\/users\/[^/]+\/toggle$/) && method === 'PATCH') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const id = path[2]
       const u = await db.collection('users').findOne({ id })
       if (!u) return json({ error: 'Not found' }, 404)
-      if (u.role === 'admin') return json({ error: 'Cannot disable admin' }, 400)
-      await db.collection('users').updateOne({ id }, { $set: { isActive: !u.isActive } })
+      if (u.role !== 'customer' || u.email === ownerEmail()) return json({ error: 'Only customer accounts can be changed here' }, 403)
+      const changed = await db.collection('users').updateOne({ id, role: 'customer', email: { $ne: ownerEmail() } }, { $set: { isActive: !u.isActive }, $inc: { sessionVersion: 1 } })
+      if (!changed.matchedCount) throw new HttpError(403, 'Account role changed; refresh and try again')
       return json({ success: true, isActive: !u.isActive })
     }
 
     if (route.match(/^admin\/users\/[^/]+\/reset-password$/) && method === 'POST') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const id = path[2]
       const b = await request.json()
-      if (!b.password || b.password.length < 6) return json({ error: 'Password must be at least 6 characters' }, 400)
+      if (!b.password || b.password.length < 8) return json({ error: 'Password must be at least 8 characters' }, 400)
       const u = await db.collection('users').findOne({ id })
       if (!u) return json({ error: 'Not found' }, 404)
-      await db.collection('users').updateOne({ id }, { $set: { passwordHash: hashPassword(b.password) } })
+      if (u.role !== 'customer' || u.email === ownerEmail()) return json({ error: 'Staff passwords must be reset by email' }, 403)
+      const changed = await db.collection('users').updateOne({ id, role: 'customer', email: { $ne: ownerEmail() } }, {
+        $set: { passwordHash: await hashPassword(password(b.password)) }, $inc: { sessionVersion: 1 },
+        $unset: { passwordResetTokenHash: '', passwordResetExpiresAt: '', passwordResetSentAt: '' },
+      })
+      if (!changed.matchedCount) throw new HttpError(403, 'Account role changed; refresh and try again')
       mockSendEmail({ to: u.email, subject: 'VEW · Password reset by admin', body: `Your VEW account password has been reset by an administrator.` })
       return json({ success: true })
     }
 
     if (route.match(/^admin\/users\/[^/]+\/impersonate$/) && method === 'POST') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const id = path[2]
       const u = await db.collection('users').findOne({ id })
       if (!u) return json({ error: 'Not found' }, 404)
-      if (u.role === 'admin') return json({ error: 'Cannot impersonate another admin' }, 400)
-      const token = signToken({ userId: u.id, role: u.role, impersonatedBy: me.id, impersonatedByEmail: me.email })
-      const { passwordHash, _id, ...safe } = u
+      if (!isOwner(me) || me._impersonatedBy || u.role !== 'customer' || u.email === me.email || !u.emailVerifiedAt || !u.isActive) return json({ error: 'Only the owner may view verified customer accounts' }, 403)
+      const token = signToken({ userId: u.id, role: u.role, sessionVersion: u.sessionVersion || 0, ownerSessionVersion: (await db.collection('users').findOne({ id: me.id })).sessionVersion || 0, impersonatedBy: me.id, impersonatedByEmail: me.email })
+      const safe = safeUser(u)
       return json({ token, user: safe, impersonating: true })
     }
 
     // Admin stats
     if (route === 'admin/stats' && method === 'GET') {
-      if (!me || me.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const now = new Date()
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-      const rfqs = await db.collection('rfqs').find({}).toArray()
+      const rfqs = await db.collection('rfqs').find({ deletedAt: { $exists: false } }).toArray()
       const thisMonth = rfqs.filter(r => r.createdAt >= startOfMonth).length
       const quotesSent = rfqs.filter(r => ['Quote Sent','Customer Approved','Order Confirmed','In Production','Quality Inspection','Ready to Ship','Shipped','Completed'].includes(r.status)).length
       const inProduction = rfqs.filter(r => ['Order Confirmed','In Production','Quality Inspection','Ready to Ship'].includes(r.status)).length
-      const totalValue = rfqs.reduce((sum, r) => sum + (r.pricing?.total || 0), 0)
+      const totalValue = rfqs.reduce((sum, r) => sum + (Number(r.pricing?.total) || 0), 0)
       const stageCounts = {}
       for (const s of PRODUCTION_STAGES) stageCounts[s] = 0
       for (const r of rfqs) {
@@ -506,11 +503,16 @@ async function handler(request, ctx) {
 
     return json({ error: 'Not found', route, method }, 404)
   } catch (err) {
-    console.error('API error:', err)
-    return json({ error: err.message }, 500)
+    const code = err.code
+    if (err instanceof HttpError) return json({ error: err.message, code: err.code }, err.status)
+    if (err instanceof SyntaxError) return json({ error: 'Invalid request body' }, 400)
+    if (code === 11000) return json({ error: 'This record already exists. Refresh and try again.' }, 409)
+    console.error('API request failed', { name: err.name, code })
+    return json({ error: 'Service temporarily unavailable. Please try again later.', code: 'SERVICE_UNAVAILABLE' }, 503)
   }
 }
 
+export const runtime = 'nodejs'
 export const GET = handler
 export const POST = handler
 export const PATCH = handler
