@@ -1,5 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { apiFetch as fetch } from '@/lib/client-http.mjs'
+import { ListPager, usePagedList } from '@/components/paged-list'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +10,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ORDER_STAGES, STAGE_STATES, productProgress } from '@/lib/order-model.mjs'
 
-async function request(token,url,method='GET',body) {
-  const r=await fetch(url,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},...(body?{body:JSON.stringify(body)}:{})})
+async function request(url,method='GET',body) {
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json',...(body?.requestKey?{'Idempotency-Key':body.requestKey}:{})},...(body?{body:JSON.stringify(body)}:{})})
   const d=await r.json()
   if(!r.ok)throw new Error(d.error||'Request failed')
   return d
@@ -18,29 +20,29 @@ const selectClass='w-full border border-slate-300 rounded-md bg-white p-2 text-s
 const freshItem=()=>({name:'',partNumber:'',quantity:1,dueDate:'',notes:'',stages:ORDER_STAGES.map(name=>({name,status:'NOT_STARTED'}))})
 
 export function CompanyContacts({auth,company}) {
-  const [members,setMembers]=useState([]),[address,setAddress]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
-  const load=async()=>{try{const d=await request(auth.token,`/api/admin/companies/${company.id}/members`);setMembers(d.members);setError('')}catch(e){setError(e.message)}}
-  useEffect(()=>{load()},[company.id,auth.token])
-  async function invite(e){e.preventDefault();setBusy(true);try{const d=await request(auth.token,`/api/admin/companies/${company.id}/members`,'POST',{email:address});setAddress('');if(d.deliveryStatus==='accepted')toast.success('Invitation submitted for delivery');else toast.error('Invitation saved, but email failed. Check Resend, then invite again after one minute.');await load()}catch(e){toast.error(e.message)}finally{setBusy(false)}}
-  async function revoke(m){if(!window.confirm(`Remove ${m.email} from ${company.name}? Other company access and their account remain unchanged.`))return;setBusy(true);try{await request(auth.token,`/api/admin/companies/${company.id}/members/${m.id}`,'DELETE');await load();toast.success('Company access revoked')}catch(e){toast.error(e.message)}finally{setBusy(false)}}
+  const [address,setAddress]=useState(''),[busy,setBusy]=useState(false)
+  const memberList=usePagedList(`/api/admin/companies/${company.id}/members`,'members',auth.user?.id)
+  const members=memberList.items,load=memberList.refresh,error=memberList.error
+  async function invite(e){e.preventDefault();setBusy(true);try{const d=await request(`/api/admin/companies/${company.id}/members`,'POST',{email:address});setAddress('');if(d.deliveryStatus==='accepted')toast.success('Invitation submitted for delivery');else toast.error('Invitation saved, but email failed. Check Resend, then invite again after one minute.');await load()}catch(e){toast.error(e.message)}finally{setBusy(false)}}
+  async function revoke(m){if(!window.confirm(`Remove ${m.email} from ${company.name}? Other company access and their account remain unchanged.`))return;setBusy(true);try{await request(`/api/admin/companies/${company.id}/members/${m.id}`,'DELETE');await load();toast.success('Company access revoked')}catch(e){toast.error(e.message)}finally{setBusy(false)}}
   return <div className="space-y-4"><p className="text-sm text-slate-600">Invite each contact separately. Active contacts can view all bulk orders for this company, but cannot edit them or invite others. Company membership does not expose anyone's personal RFQs.</p>
     <form onSubmit={invite} className="flex flex-wrap gap-2"><Input aria-label="Contact email" type="email" required value={address} onChange={e=>setAddress(e.target.value)} placeholder="Customer email" className="flex-1"/><Button disabled={busy}>Send invitation</Button></form>
     {error&&<p role="alert" className="text-red-600">{error}</p>}
     {members.map(m=><div key={m.id} className="border-t py-3 flex flex-wrap justify-between gap-2"><div><p className="font-medium break-all">{m.email}</p><p className="text-sm text-slate-600">{m.status==='pending'&&new Date(m.expiresAt)<new Date()?'Expired':m.status}{m.status==='pending'&&` · Email ${m.deliveryStatus||'pending'}`}</p></div>{m.status!=='revoked'&&<Button variant="outline" disabled={busy} onClick={()=>revoke(m)}>Revoke access</Button>}</div>)}
-    {!members.length&&!error&&<p className="text-sm text-slate-500">No contacts invited yet.</p>}
+    {!members.length&&!error&&!memberList.loading&&<p className="text-sm text-slate-500">No contacts invited yet.</p>}
+    <ListPager list={memberList} label="Contacts" />
   </div>
 }
 
 export function CompanyInvitation({token,auth,onDone,onSignIn}) {
   const [details,setDetails]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
   const [form,setForm]=useState({firstName:'',lastName:'',password:'',confirm:''})
-  useEffect(()=>{let cancelled=false;request(null,'/api/company-invitations/inspect','POST',{token}).then(d=>{if(!cancelled)setDetails(d)}).catch(e=>{if(!cancelled)setError(e.message)});return()=>{cancelled=true}},[token])
+  useEffect(()=>{let cancelled=false;request('/api/company-invitations/inspect','POST',{token}).then(d=>{if(!cancelled)setDetails(d)}).catch(e=>{if(!cancelled)setError(e.message)});return()=>{cancelled=true}},[token])
   const alreadySignedIn=auth.user?.email===details?.email
   async function accept(e){e.preventDefault();setBusy(true);setError('');try{
     if(!details.existingAccount&&form.password!==form.confirm){setError('Passwords must match');return}
-    let session=auth.token
-    if(details.existingAccount&&!alreadySignedIn){await auth.login(details.email,form.password);session=localStorage.getItem('vew_token')}
-    await request(session,'/api/company-invitations/accept','POST',{token,...form})
+    if(details.existingAccount&&!alreadySignedIn){await auth.login(details.email,form.password)}
+    await request('/api/company-invitations/accept','POST',{token,...form})
     if(!details.existingAccount)await auth.login(details.email,form.password)
     toast.success('Company access enabled');onDone()
   }catch(e){setError(e.message)}finally{setBusy(false)}}
@@ -58,17 +60,27 @@ export function CompanyInvitation({token,auth,onDone,onSignIn}) {
 }
 
 export function CompanyOrders({auth,staff=false}) {
-  const [companies,setCompanies]=useState([]),[orders,setOrders]=useState([]),[companyId,setCompanyId]=useState(''),[query,setQuery]=useState('')
-  const [editing,setEditing]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[loading,setLoading]=useState(true)
-  const load=async()=>{try{const [c,o]=await Promise.all([request(auth.token,'/api/companies'),request(auth.token,'/api/orders')]);setCompanies(c.companies);setOrders(o.orders);setError('')}catch(e){setError(e.message)}finally{setLoading(false)}}
-  useEffect(()=>{load();const timer=setInterval(load,20000);return()=>clearInterval(timer)},[auth.token])
+  const [companyId,setCompanyId]=useState(''),[query,setQuery]=useState('')
+  const [editing,setEditing]=useState(null),[busy,setBusy]=useState(false)
+  const submission=useRef(null),saving=useRef(false)
+  const companyList=usePagedList('/api/companies','companies',auth.user?.id)
+  const orderList=usePagedList(`/api/orders?companyId=${encodeURIComponent(companyId)}&q=${encodeURIComponent(query)}`,'orders',auth.user?.id,true)
+  const companies=companyList.items,orders=orderList.items,error=orderList.error,loading=orderList.loading
+  const load=()=>Promise.all([companyList.refresh(),orderList.refresh()])
   const changeItem=(i,data)=>setEditing(prev=>({...prev,items:prev.items.map((p,n)=>n===i?{...p,...data}:p)}))
-  async function save(e){e.preventDefault();setBusy(true);try{await request(auth.token,`/api/orders${editing.id?'/'+editing.id:''}`,editing.id?'PATCH':'POST',editing);setEditing(null);toast.success('Order saved');await load()}catch(e){toast.error(e.message)}finally{setBusy(false)}}
-  async function archive(order){if(!window.confirm(`Archive ${order.orderNumber}? It will disappear from the customer portal; its records are retained.`))return;setBusy(true);try{await request(auth.token,`/api/orders/${order.id}`,'DELETE');await load();toast.success('Order archived')}catch(e){toast.error(e.message)}finally{setBusy(false)}}
+  async function save(e){
+    e.preventDefault();if(saving.current)return;saving.current=true;setBusy(true)
+    const fingerprint=JSON.stringify(editing)
+    if(submission.current?.fingerprint!==fingerprint)submission.current={fingerprint,key:crypto.randomUUID()}
+    try{await request(`/api/orders${editing.id?'/'+editing.id:''}`,editing.id?'PATCH':'POST',{...editing,requestKey:submission.current.key});setEditing(null);submission.current=null;toast.success('Order saved');await load()}catch(e){toast.error(e.message)}finally{saving.current=false;setBusy(false)}
+  }
+  async function archive(order){if(!window.confirm(`Archive ${order.orderNumber}? It will disappear from the customer portal; its records are retained.`))return;setBusy(true);try{await request(`/api/orders/${order.id}`,'DELETE');await load();toast.success('Order archived')}catch(e){toast.error(e.message)}finally{setBusy(false)}}
   const filtered=orders.filter(o=>(!companyId||o.companyId===companyId)&&[o.orderNumber,o.companyName,o.reference,...o.items.map(p=>p.name)].join(' ').toLowerCase().includes(query.toLowerCase()))
   return <section className="space-y-4 my-6" aria-label="Company orders"><div className="flex flex-wrap justify-between gap-3"><div><h2 className="text-2xl font-bold">Company bulk orders</h2><p className="text-sm text-slate-600">{staff?'Enter orders received by email, phone or directly. Track each product independently.':'Shared with your company contacts. Each product has its own production progress.'}</p></div><div className="flex gap-2"><Button variant="outline" onClick={load}>Refresh orders</Button>{staff&&<Button disabled={!companies.length} onClick={()=>setEditing({companyId:companyId||companies[0]?.id,reference:'',source:'email',notes:'',internalNotes:'',items:[freshItem()]})}>Add bulk order</Button>}</div></div>
     {error&&<p role="alert" className="text-red-600">{error}</p>}
-    <div className="grid sm:grid-cols-2 gap-3"><select aria-label="Filter by company" className={selectClass} value={companyId} onChange={e=>setCompanyId(e.target.value)}><option value="">All companies</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><Input aria-label="Search bulk orders" placeholder="Search order, PO or product" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+    <ListPager list={companyList} label="Company choices" />
+    <div className="grid sm:grid-cols-2 gap-3"><select aria-label="Filter by company" className={selectClass} value={companyId} onChange={e=>setCompanyId(e.target.value)}><option value="">All companies</option>{companyId&&!companies.some(c=>c.id===companyId)&&<option value={companyId}>Selected company (another page)</option>}{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><Input aria-label="Search bulk orders" placeholder="Search order, PO or product" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+    <ListPager list={orderList} label="Orders" />
     {companyId&&companies.filter(c=>c.id===companyId).map(c=><Card key={c.id}><CardContent className="p-4"><h3 className="font-bold">{c.name}</h3><p className="text-sm whitespace-pre-wrap">{c.address}</p><p className="text-sm">{c.contactName} · {c.email} · {c.phone}</p></CardContent></Card>)}
     {loading?<p>Loading orders…</p>:!filtered.length&&<p className="text-sm text-slate-500">{staff?'No orders here yet. Add a company in the Companies tab, then create its order.':'No company orders are available. Ask VEW to invite your email to your company profile.'}</p>}
     {filtered.map(order=><Card key={order.id}><CardContent className="p-5"><details><summary className="cursor-pointer font-semibold">{order.orderNumber} · {order.companyName}{order.reference&&` · PO ${order.reference}`}<span className="block text-sm font-normal text-slate-600 mt-1">{order.items.filter(p=>!p.archived).length} products · Updated {new Date(order.updatedAt).toLocaleString()}</span></summary>

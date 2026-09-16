@@ -30,10 +30,10 @@ async function loadRoute() {
   source = source.replaceAll("'@/lib/server/", `'${new URL('lib/server/', root).href}`)
   return import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
 }
-async function call(path, method = 'GET', body, token) {
-  const request = new Request(`http://localhost/api/${path}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+async function call(path, method = 'GET', body, token, headers = {}) {
+  const request = new Request(`http://localhost/api/${path}`, { method, headers: { 'Content-Type': 'application/json', 'X-VEW-Request': '1', ...(token ? { Cookie: `vew-session=${token}` } : {}), ...headers }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
   const response = await route[method](request, { params: Promise.resolve({ path: path.split('/')[0].includes('?') ? [path.split('?')[0]] : path.split('?')[0].split('/') }) })
-  return { status: response.status, body: await response.json() }
+  return { status: response.status, body: await response.json(), cookies: response.headers.getSetCookie() }
 }
 async function user(id, role = 'customer', overrides = {}) {
   const u = { id, email: `${id}@example.com`, firstName: id, lastName: 'Test', phoneNorm: id, passwordHash: await hashPassword('TestPassword42!'), role, emailVerifiedAt: new Date().toISOString(), isActive: true, sessionVersion: 0, ...overrides }
@@ -62,6 +62,51 @@ test('missing database configuration returns a safe 503; corrected config recove
   process.env.MONGO_URL = server.getUri()
   assert.equal((await call('health')).status, 200)
 })
+
+test('cookie login hides tokens, rejects legacy bearer and CSRF, and logout revokes replay', async () => {
+  const u = await user('cookie-session')
+  const login = await call('auth/login', 'POST', { identifier: u.email, password: 'TestPassword42!' })
+  assert.equal(login.body.token, undefined)
+  const cookie = login.cookies.find(c => c.startsWith('vew-session=')).split(';')[0]
+  assert.equal((await call('auth/me','GET',undefined,undefined,{ Cookie: cookie })).status,200)
+  assert.equal((await call('auth/me','GET',undefined,undefined,{ Authorization: `Bearer ${u.token}` })).status,401)
+  assert.equal((await call('auth/logout','POST',{},u.token,{ Origin:'https://evil.test' })).status,403)
+  assert.equal((await call('auth/logout','POST',{},u.token,{ 'X-VEW-Request':'' })).status,403)
+  const logout=await call('auth/logout','POST',{},undefined,{Cookie:cookie})
+  assert.equal(logout.status,200)
+  assert.ok(logout.cookies.every(c=>c.includes('Max-Age=0')))
+  assert.equal((await call('auth/me','GET',undefined,undefined,{Cookie:cookie})).status,401)
+})
+
+test('concurrent identical RFQ and upload retries save exactly once and reject changed payloads', async () => {
+  const u=await user('idempotent-rfq')
+  const key={'Idempotency-Key':'test-concurrent-rfq-0001'}
+  const body={gearType:'Spur Gear',general:{quantity:3},customer:{email:u.email},files:[]}
+  const before=globalThis.__vewReceipts.length
+  const responses=await Promise.all(Array.from({length:8},()=>call('rfq','POST',body,u.token,key)))
+  assert.ok(responses.every(r=>r.status===200))
+  assert.equal(new Set(responses.map(r=>r.body.rfq.id)).size,1)
+  assert.equal(await db.collection('rfqs').countDocuments({userId:u.id}),1)
+  assert.equal(globalThis.__vewReceipts.length-before,1)
+  assert.equal((await call('rfq','POST',{...body,general:{quantity:4}},u.token,key)).status,409)
+  const files={files:[{name:'drawing.pdf',dataUrl:'data:application/pdf;base64,JVBERi0='}]}
+  const uploaded=await Promise.all([call('upload','POST',files,u.token,key),call('upload','POST',files,u.token,key)])
+  assert.equal(uploaded[0].body.files[0].id,uploaded[1].body.files[0].id)
+  assert.equal(await db.collection('files').countDocuments({userId:u.id}),1)
+  assert.equal((await call('upload','POST',{files:[{name:'fake.pdf',dataUrl:'data:application/pdf;base64,PGh0bWw+'}]},u.token)).status,400)
+})
+
+test('paged RFQs preserve customer isolation and literal search; invalid limits are rejected', async () => {
+  const u=await user('paged-customer')
+  await db.collection('rfqs').insertMany(Array.from({length:3},(_,i)=>({id:`paging-${i}`,userId:u.id,rfqNumber:`literal[${i}]`,customer:{email:u.email},createdAt:new Date().toISOString(),productionStages:[]})))
+  const first=await call('rfq?limit=2&page=1','GET',undefined,u.token)
+  const second=await call('rfq?limit=2&page=2','GET',undefined,u.token)
+  assert.equal(first.body.rfqs.length,2);assert.equal(first.body.pagination.hasMore,true)
+  assert.equal(second.body.rfqs.length,1);assert.equal(second.body.pagination.hasMore,false)
+  assert.equal(new Set([...first.body.rfqs,...second.body.rfqs].map(r=>r.id)).size,3)
+  assert.equal((await call('rfq?limit=100000','GET',undefined,u.token)).status,400)
+  assert.equal((await call('rfq?q=%5B1%5D','GET',undefined,u.token)).body.rfqs.length,1)
+})
 test('signup validates inputs and blocks login until an email token is consumed once', async () => {
   assert.equal((await call('auth/signup', 'POST', { email: { $ne: null } })).status, 400)
   const signup = await call('auth/signup', 'POST', { email: 'NEW@example.com', firstName: 'New', lastName: 'Person', phone: '+15550001234', password: 'StrongPass123!' })
@@ -76,7 +121,8 @@ test('signup validates inputs and blocks login until an email token is consumed 
   assert.deepEqual(results.map(r=>r.status).sort(), [200,400])
   const login = await call('auth/login','POST',{identifier:'new@example.com', password:'StrongPass123!'})
   assert.equal(login.status,200)
-  assert.ok(login.body.token)
+  assert.equal(login.body.token, undefined)
+  assert.ok(login.cookies.some(c => c.startsWith('vew-session=') && c.includes('HttpOnly')))
   assert.equal(login.body.user.passwordHash, undefined)
   assert.equal(login.body.user.emailVerificationTokenHash, undefined)
 })
@@ -192,7 +238,7 @@ test('RFQ survives a receipt email failure without asking the customer to resubm
 test('rate limits persist in database and malformed JSON returns 400', async () => {
   for (let i=0;i<12;i++) await call('auth/login','POST',{identifier:'rate@example.com',password:'wrong'})
   assert.equal((await call('auth/login','POST',{identifier:'rate@example.com',password:'wrong'})).status,429)
-  const r = await route.POST(new Request('http://localhost/api/auth/signup',{method:'POST',body:'{'}),{params:Promise.resolve({path:['auth','signup']})})
+  const r = await route.POST(new Request('http://localhost/api/auth/signup',{method:'POST',headers:{'X-VEW-Request':'1'},body:'{'}),{params:Promise.resolve({path:['auth','signup']})})
   assert.equal(r.status,400)
 })
 test('email delivery fails closed when provider or trusted site URL is absent', () => {
