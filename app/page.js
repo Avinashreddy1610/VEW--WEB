@@ -34,12 +34,23 @@ const IMG_3 = 'https://images.unsplash.com/photo-1567093322102-6bdd32fba67d?crop
 const IMG_4 = 'https://images.unsplash.com/photo-1565954786194-d22abeaac3ae?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwyfHxnZWFyJTIwbWFudWZhY3R1cmluZ3xlbnwwfHx8YmxhY2t8MTc4ODQ4ODgxMnww&ixlib=rb-4.1.0&q=85'
 const IMG_CNC = 'https://images.unsplash.com/photo-1652888510609-ed2d2ad64d6b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwzfHxDTkMlMjBtYWNoaW5lfGVufDB8fHxibGFja3wxNzg4NDg4ODE3fDA&ixlib=rb-4.1.0&q=85'
 const IMG_CNC2 = 'https://images.unsplash.com/photo-1548683726-203119be6a39?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwyfHxDTkMlMjBtYWNoaW5lfGVufDB8fHxibGFja3wxNzg4NDg4ODE3fDA&ixlib=rb-4.1.0&q=85'
-const GAL_1 = 'https://images.unsplash.com/photo-1606337321936-02d1b1a4d5ef?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000'
-const GAL_2 = 'https://images.unsplash.com/photo-1705490899854-2e4b15a0c811?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000'
-const GAL_3 = 'https://images.unsplash.com/photo-1585366958403-bacb4c36a1a9?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000'
-const GAL_4 = 'https://images.unsplash.com/photo-1585366958113-e28e8e580d3a?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000'
-const GAL_5 = 'https://images.pexels.com/photos/7568421/pexels-photo-7568421.jpeg?auto=compress&cs=tinysrgb&w=1000'
-const GALLERY = [GAL_1, GAL_2, GAL_3, GAL_4, GAL_5, IMG_2, IMG_3, IMG_4]
+const GALLERY = [
+  { src: '/workshop/finished-gear-components.jpg', alt: 'Finished gear components at Vijaya Engineering Works', caption: 'Finished gears' },
+  { src: '/workshop/workshop-machinery.jpg', alt: 'Machine tools on the Vijaya Engineering Works production floor', caption: 'Workshop machinery' },
+  { src: '/workshop/machining-setup.jpg', alt: 'Metalworking machine set up in the workshop', caption: 'Machining setup' },
+  { src: '/workshop/industrial-equipment.jpg', alt: 'Industrial equipment inside the Vijaya Engineering Works workshop', caption: 'Workshop equipment' },
+  { src: '/workshop/lathe-setup.jpg', alt: 'Lathe and cutting equipment in the workshop', caption: 'Lathe setup' },
+  { src: '/workshop/production-floor.jpg', alt: 'Machine tools on the production floor', caption: 'Production floor' },
+  { src: '/workshop/vertical-machining-setup.jpg', alt: 'Vertical machining equipment in the workshop', caption: 'Machining equipment' },
+  { src: '/workshop/gear-machining.jpg', alt: 'Technician machining a gear component', caption: 'Machining in progress' },
+  { src: '/workshop/lathe-workstation.jpg', alt: 'Lathe workstation with a mounted component', caption: 'Lathe workstation' },
+  { src: '/workshop/bevel-gear.jpg', alt: 'Finished bevel gear component', caption: 'Bevel gear' },
+  { src: '/workshop/vertical-machine.jpg', alt: 'Vertical metalworking machine in the workshop', caption: 'Vertical machine' },
+  { src: '/workshop/heavy-machining.jpg', alt: 'Heavy green machining equipment in the workshop', caption: 'Heavy machining' },
+  { src: '/workshop/machining-closeup.jpg', alt: 'Close view of a metalworking setup', caption: 'Machining close-up' },
+  { src: '/workshop/gear-cutting-machine.jpg', alt: 'Gear mounted on a cutting machine', caption: 'Gear cutting' },
+  { src: '/workshop/machining-equipment-angle.jpg', alt: 'Another view of heavy machining equipment', caption: 'Machining equipment' },
+]
 
 // ============== CONSTANTS ==============
 const GEAR_TYPES = ['Spiral Bevel Gear','Spiral Bevel Pinion','Spiral Bevel Gear Set','Straight Bevel Gear','Helical Gear','Spur Gear','Other Custom Gear']
@@ -435,15 +446,15 @@ function HomePage({ setRoute, cms }) {
             <div className="flex items-end justify-between flex-wrap gap-4 mb-10">
               <div>
                 <div className="text-amber-600 font-semibold text-sm uppercase tracking-widest mb-3">Gallery</div>
-                <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">Precision, up close</h2>
+                <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">Inside our workshop</h2>
               </div>
               <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
             </div>
           </FadeIn>
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {GALLERY.slice(0, 8).map((img, i) => (
-              <motion.div key={i} variants={fadeUp} whileHover={{ scale: 1.03 }} className="aspect-square rounded-xl overflow-hidden bg-slate-900">
-                <ResponsiveImage src={img} alt="" className="w-full h-full object-cover" />
+            {GALLERY.slice(0, 8).map((photo) => (
+              <motion.div key={photo.src} variants={fadeUp} whileHover={{ scale: 1.03 }} className="aspect-square rounded-xl overflow-hidden bg-slate-900">
+                <ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" />
               </motion.div>
             ))}
           </motion.div>
@@ -581,7 +592,7 @@ function ProductDetail({ productKey, setRoute, cms }) {
       <section className="container mx-auto px-4 pb-20">
         <h3 className="font-bold text-slate-900 mb-6 text-2xl">Gallery</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {GALLERY.slice(0, 4).map((g, i) => <ResponsiveImage key={i} src={g} alt={`Gear manufacturing gallery image ${i + 1}`} className="aspect-square object-cover rounded-xl" whileHover={{ scale: 1.03 }} />)}
+          {GALLERY.slice(0, 4).map(photo => <ResponsiveImage key={photo.src} src={photo.src} alt={photo.alt} className="aspect-square object-contain bg-slate-900 rounded-xl" whileHover={{ scale: 1.03 }} />)}
         </div>
       </section>
     </div>
@@ -623,12 +634,13 @@ function GalleryPage() {
   return (
     <div className="container mx-auto px-4 py-20">
       <FadeIn><h1 className="text-5xl font-bold text-slate-900 mb-3 tracking-tight">Gallery</h1>
-      <p className="text-slate-600 mb-12 text-lg max-w-2xl">Precision engineered gears and finished components from our production floor.</p></FadeIn>
+      <p className="text-slate-600 mb-12 text-lg max-w-2xl">Photos of our equipment, machining work, and gear components.</p></FadeIn>
       <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {GALLERY.concat([HERO_IMG, IMG_CNC, IMG_CNC2]).map((g, i) => (
-          <motion.div key={i} variants={fadeUp} whileHover={{ scale: 1.03 }} className="aspect-square rounded-2xl overflow-hidden bg-slate-900 shadow-lg">
-            <ResponsiveImage src={g} alt={`Gear and machining gallery image ${i + 1}`} className="w-full h-full object-cover" />
-          </motion.div>
+        {GALLERY.map(photo => (
+          <motion.figure key={photo.src} variants={fadeUp} whileHover={{ y: -3 }} className="rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm">
+            <div className="aspect-square bg-slate-900"><ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" /></div>
+            <figcaption className="px-3 py-2 text-sm font-medium text-slate-700">{photo.caption}</figcaption>
+          </motion.figure>
         ))}
       </motion.div>
     </div>
