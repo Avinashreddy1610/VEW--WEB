@@ -26,7 +26,11 @@ test('timeouts and disconnected requests give safe actionable messages without a
   assert.equal(calls, 1)
 })
 test('error and not-found pages exist; API keys are not exposed with public environment prefixes', async () => {
-  for (const name of ['not-found.js', 'error.js', 'loading.js', 'icon.svg']) assert.ok((await fs.stat(new URL(`../app/${name}`, import.meta.url))).size > 0)
+  for (const name of ['not-found.js', 'error.js', 'loading.js']) assert.ok((await fs.stat(new URL(`../app/${name}`, import.meta.url))).size > 0)
+  const icon = await fs.readFile(new URL('../app/icon.png', import.meta.url))
+  assert.equal(icon.subarray(0, 8).toString('hex'), '89504e470d0a1a0a')
+  assert.ok(icon.readUInt32BE(16) >= 48)
+  assert.equal(icon.readUInt32BE(16), icon.readUInt32BE(20))
   for (const path of ['app/page.js', 'components/company-orders.jsx', 'components/management-panels.jsx']) {
     const source = await fs.readFile(new URL(`../${path}`, import.meta.url), 'utf8')
     assert.doesNotMatch(source, /NEXT_PUBLIC_(?:MONGO|AUTH_SECRET|RESEND|VERCEL)/)
