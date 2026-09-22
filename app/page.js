@@ -21,7 +21,7 @@ import { CompanyOrders, CompanyInvitation } from '@/components/company-orders'
 const isStaff = user => ['owner', 'manager'].includes(user?.role)
 import {
   Cog, Wrench, Factory, Ruler, ShieldCheck, Upload, FileText, Trash2, ArrowRight, ArrowLeft,
-  CheckCircle2, Menu, X, Mail, Phone, MapPin, ClipboardList, Search,
+  CheckCircle2, Menu, X, Mail, Phone, MapPin, Globe2, ClipboardList, Search,
   Package, TrendingUp, Send, Download, RefreshCw, Building2, LogIn, LogOut, User, UserPlus,
   Circle, Loader2, Pencil, Save, FileDown, Sparkles, Boxes,
   Hammer, Flame, Layers, Wind, Truck, Award
@@ -51,6 +51,9 @@ const GALLERY = [
   { src: '/workshop/gear-cutting-machine.jpg', alt: 'Gear mounted on a cutting machine', caption: 'Gear cutting' },
   { src: '/workshop/machining-equipment-angle.jpg', alt: 'Another view of heavy machining equipment', caption: 'Machining equipment' },
 ]
+
+const COMPANY_URL = 'https://www.vijayaengineeringworks.com'
+const COMPANY_MAPS_URL = 'https://www.google.com/maps/place/VIJAYA+ENGINEERING+WORKS/@17.5126854,78.4642879,759m/data=!3m2!1e3!4b1!4m6!3m5!1s0x3bcb91f4238e884b:0x2e79917f150aa34d!8m2!3d17.5126854!4d78.4642879!16s%2Fg%2F11pf2lzzm4'
 
 // ============== CONSTANTS ==============
 const GEAR_TYPES = ['Spiral Bevel Gear','Spiral Bevel Pinion','Spiral Bevel Gear Set','Straight Bevel Gear','Helical Gear','Spur Gear','Other Custom Gear']
@@ -295,6 +298,8 @@ function Footer({ setRoute, cms }) {
             {cms?.phone && <li className="flex items-center gap-2"><Phone className="h-4 w-4 shrink-0" /><a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:text-amber-400">{cms.phone}</a></li>}
             {cms?.email && <li className="flex items-center gap-2"><Mail className="h-4 w-4 shrink-0" /><a href={`mailto:${cms.email}`} className="break-all hover:text-amber-400">{cms.email}</a></li>}
             {cms?.address && <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 shrink-0" />{cms.address}</li>}
+            <li className="flex items-start gap-2"><Globe2 className="h-4 w-4 mt-0.5 shrink-0" /><a href={COMPANY_URL} className="break-all hover:text-amber-400">vijayaengineeringworks.com</a></li>
+            <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 shrink-0" /><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="hover:text-amber-400">Find us on Google Maps</a></li>
             {!cms?.email && !cms?.phone && <li><button onClick={() => setRoute('rfq')} className="underline">Contact us through a quote request</button></li>}
           </ul>
         </div>
@@ -673,7 +678,8 @@ function ContactPage({ cms }) {
         <FadeIn><div className="space-y-5 text-slate-700">
           <div className="flex items-start gap-3"><Phone className="h-5 w-5 text-amber-500 mt-1 shrink-0" /><div><div className="font-semibold text-slate-900">Phone</div>{cms?.phone ? <a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="underline">{cms.phone}</a> : 'Please use a quote request to contact us.'}</div></div>
           <div className="flex items-start gap-3"><Mail className="h-5 w-5 text-amber-500 mt-1 shrink-0" /><div className="min-w-0"><div className="font-semibold text-slate-900">Email</div>{contactEmail ? <a href={`mailto:${contactEmail}`} className="underline break-all">{contactEmail}</a> : 'Contact email is being updated.'}</div></div>
-          <div className="flex items-start gap-3"><MapPin className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Address</div>{cms?.address}</div></div>
+          <div className="flex items-start gap-3"><MapPin className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Address</div>{cms?.address}<div><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="underline text-amber-700">View our location on Google Maps</a></div></div></div>
+          <div className="flex items-start gap-3"><Globe2 className="h-5 w-5 text-amber-500 mt-1 shrink-0" /><div className="min-w-0"><div className="font-semibold text-slate-900">Website</div><a href={COMPANY_URL} className="underline break-all">vijayaengineeringworks.com</a></div></div>
           <div className="flex items-start gap-3"><Building2 className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Hours</div>{cms?.hours}</div></div>
         </div></FadeIn>
         <FadeIn delay={0.1}><Card><CardContent className="p-6"><form onSubmit={composeContact} className="space-y-3">
