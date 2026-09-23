@@ -225,13 +225,20 @@ function Eyebrow({ children, className = '' }) {
   )
 }
 
-function SectionHead({ eyebrow, title, sub, center = false }) {
+function SectionHead({ eyebrow, title, sub, center = false, no }) {
   return (
     <FadeIn>
-      <div className={`max-w-4xl mb-16 ${center ? 'mx-auto text-center' : ''}`}>
-        <Eyebrow className={center ? 'justify-center' : ''}>{eyebrow}</Eyebrow>
-        <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tight text-[#f5f1ea] leading-[1.02]">{title}</h2>
-        {sub && <p className={`text-[#a39e93] mt-5 text-lg font-light leading-relaxed max-w-2xl ${center ? 'mx-auto' : ''}`}>{sub}</p>}
+      <div className={`relative max-w-4xl mb-16 ${center ? 'mx-auto text-center' : ''}`}>
+        {no && (
+          <div aria-hidden className={`font-display font-bold text-outline-faint leading-none text-[6.5rem] md:text-[8.5rem] absolute -top-14 md:-top-20 select-none pointer-events-none ${center ? 'left-1/2 -translate-x-1/2' : '-left-3'}`}>
+            {no}
+          </div>
+        )}
+        <div className="relative">
+          <Eyebrow className={center ? 'justify-center' : ''}>{eyebrow}</Eyebrow>
+          <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tight text-[#f5f1ea] leading-[1.02]">{title}</h2>
+          {sub && <p className={`text-[#a39e93] mt-5 text-lg font-light leading-relaxed max-w-2xl ${center ? 'mx-auto' : ''}`}>{sub}</p>}
+        </div>
       </div>
     </FadeIn>
   )
@@ -314,6 +321,61 @@ function SpotCard({ children, className = '', onClick }) {
   return (
     <div ref={ref} onMouseMove={onMove} onClick={onClick} className={`spot-card ${className}`}>
       {children}
+    </div>
+  )
+}
+
+// ============== APP-LEVEL CHROME ==============
+function ScrollProgress() {
+  const { scrollYProgress } = useScroll()
+  return <motion.div style={{ scaleX: scrollYProgress }} className="fixed top-0 left-0 right-0 h-[3px] z-[120] origin-left bg-gradient-to-r from-[#ffd23f] via-[#ff8a1e] to-[#ff4d00]" />
+}
+
+function Preloader({ onDone }) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    const t0 = performance.now()
+    let raf
+    const tick = (t) => {
+      const p = Math.min(1, (t - t0) / 1150)
+      setN(Math.round(p * 100))
+      if (p < 1) raf = requestAnimationFrame(tick)
+      else setTimeout(onDone, 280)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [onDone])
+  return (
+    <motion.div exit={{ y: '-100%' }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+      className="fixed inset-0 z-[200] bg-[#060504] flex flex-col items-center justify-center px-6">
+      <div className="font-tech text-[11px] uppercase tracking-[0.42em] text-[#ff8a1e] mb-5">// Vijaya Engineering Works</div>
+      <div className="font-display text-7xl md:text-8xl font-bold text-[#f5f1ea] tracking-tight">{n}<span className="text-molten">%</span></div>
+      <div className="w-60 h-px bg-white/10 mt-7 overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-[#ffd23f] to-[#ff4d00]" style={{ width: `${n}%` }} />
+      </div>
+      <div className="font-tech text-[10px] uppercase tracking-[0.32em] text-[#a39e93] mt-5">Calibrating precision systems</div>
+    </motion.div>
+  )
+}
+
+function CapRow({ c, i }) {
+  const [open, setOpen] = useState(false)
+  const Icon = c.icon
+  return (
+    <div className="border-b border-white/10">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="w-full flex items-center gap-5 md:gap-8 py-6 text-left group">
+        <span className="font-tech text-sm text-[#ff8a1e] w-10 shrink-0">{String(i + 1).padStart(2, '0')}</span>
+        <span className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#ff8a1e]/20 to-[#ff8a1e]/5 border border-[#ff8a1e]/30 hidden sm:flex items-center justify-center shrink-0">
+          <Icon className="h-5 w-5 text-[#ffb52e]" />
+        </span>
+        <span className="font-display text-2xl md:text-4xl font-bold text-[#f5f1ea] group-hover:text-[#ffb52e] transition-colors flex-1 tracking-tight">{c.title}</span>
+        <span className={`font-display text-3xl text-[#ff8a1e] leading-none transition-transform duration-300 ${open ? 'rotate-45' : ''}`}>+</span>
+      </button>
+      <div className={`grid transition-all duration-500 ease-out ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+        <div className="overflow-hidden">
+          <p className="pb-7 pl-[4.5rem] md:pl-[7rem] pr-4 text-[#a39e93] text-lg font-light leading-relaxed max-w-2xl">{c.desc}</p>
+        </div>
+      </div>
     </div>
   )
 }
@@ -428,58 +490,89 @@ function HomePage({ setRoute, cms }) {
   return (
     <div>
       {/* HERO */}
-      <section ref={heroRef} className="relative bg-[#070605] text-white overflow-hidden min-h-[94vh] flex items-center">
+      <section ref={heroRef} className="relative bg-[#070605] text-white overflow-hidden">
         <motion.div style={{ y: heroY, scale: heroScale }} className="absolute inset-0">
-          <ResponsiveImage src={HERO_IMG} alt="" priority sizes="100vw" className="w-full h-full object-cover opacity-25" />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#070605]/60 via-[#070605]/80 to-[#070605]" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#070605]/70 via-transparent to-[#070605]/30" />
+          <ResponsiveImage src={HERO_IMG} alt="" priority sizes="100vw" className="w-full h-full object-cover opacity-20" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#070605]/70 via-[#070605]/85 to-[#070605]" />
         </motion.div>
         <GridBg />
         <Orbs />
         <Noise />
-        <motion.div aria-hidden style={{ y: heroY }} className="pointer-events-none absolute -right-48 top-1/2 hidden -translate-y-1/2 opacity-[0.10] lg:block">
-          <motion.div animate={{ rotate: 360 }} transition={{ duration: 70, repeat: Infinity, ease: 'linear' }}>
-            <Cog className="h-[600px] w-[600px] text-[#ff8a1e]" strokeWidth={0.35} />
+        <div className="relative container mx-auto px-4 pt-28 pb-14 lg:pt-36 lg:pb-20 grid lg:grid-cols-12 gap-14 items-center">
+          <motion.div style={{ opacity: heroOpacity }} className="lg:col-span-7">
+            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
+              <div className="font-tech text-[11px] uppercase tracking-[0.42em] text-[#ff8a1e] mb-7">// Custom gear manufacturing</div>
+            </motion.div>
+            <motion.h1 initial={{ opacity: 0, y: 34 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+              className="font-display font-bold tracking-[-0.02em] leading-[0.9] text-[clamp(3.4rem,8.5vw,7.2rem)] mb-7">
+              WE CUT<br />
+              <span className="text-molten drop-shadow-[0_0_45px_rgba(255,106,0,0.35)]">PRECISION</span><br />
+              <span className="text-outline">INTO STEEL</span>
+            </motion.h1>
+            <motion.p initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.26 }}
+              className="text-lg md:text-xl text-[#a39e93] max-w-xl font-light leading-relaxed mb-9">
+              Spiral bevel, helical and spur gears — plus complete gear sets — machined from your drawings to <span className="text-[#f5f1ea] font-normal">±0.002&nbsp;mm</span> and inspected to AGMA Q12.
+            </motion.p>
+            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.38 }} className="flex flex-wrap gap-4 mb-12">
+              <Button size="lg" onClick={() => setRoute('rfq')} className="btn-molten font-tech uppercase tracking-[0.18em] text-sm h-14 px-10 rounded-full">
+                Request a Quote <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => setRoute('gallery')} className="border-white/25 text-white hover:bg-white hover:text-black bg-white/5 backdrop-blur-sm h-14 px-10 text-sm rounded-full font-tech uppercase tracking-[0.18em]">
+                See the shop
+              </Button>
+            </motion.div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.55 }}
+              className="grid grid-cols-3 max-w-lg border-y border-white/10 divide-x divide-white/10">
+              {[['30+', 'Years cutting'], ['Q12', 'AGMA grade'], ['1200', 'mm max OD']].map(([v, l]) => (
+                <div key={l} className="px-5 py-4 first:pl-0">
+                  <div className="font-display text-3xl font-bold text-[#f5f1ea]">{v}</div>
+                  <div className="font-tech text-[10px] uppercase tracking-[0.24em] text-[#a39e93] mt-1">{l}</div>
+                </div>
+              ))}
+            </motion.div>
           </motion.div>
-        </motion.div>
-        <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
-          <div className="animate-vew-float absolute top-[24%] right-[12%] font-tech text-[11px] tracking-[0.2em] uppercase text-[#ffb52e] border border-[#ff8a1e]/30 bg-white/[0.04] backdrop-blur-md px-4 py-2.5 rounded-full shadow-[0_0_30px_-8px_rgba(255,122,26,0.5)]">±0.002 mm tolerance</div>
-          <div className="animate-vew-float absolute top-[46%] right-[30%] font-tech text-[11px] tracking-[0.2em] uppercase text-[#ffb52e] border border-[#ff8a1e]/30 bg-white/[0.04] backdrop-blur-md px-4 py-2.5 rounded-full shadow-[0_0_30px_-8px_rgba(255,122,26,0.5)]" style={{ animationDelay: '-2s' }}>1200 mm max OD</div>
-          <div className="animate-vew-float absolute top-[64%] right-[10%] font-tech text-[11px] tracking-[0.2em] uppercase text-[#ffb52e] border border-[#ff8a1e]/30 bg-white/[0.04] backdrop-blur-md px-4 py-2.5 rounded-full shadow-[0_0_30px_-8px_rgba(255,122,26,0.5)]" style={{ animationDelay: '-4s' }}>AGMA Q12 grade</div>
-        </div>
-        <motion.div style={{ opacity: heroOpacity }} className="relative container mx-auto px-4 max-w-6xl py-28">
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}>
-            <div className="inline-flex items-center gap-2.5 border border-[#ff8a1e]/30 bg-white/[0.04] backdrop-blur-md rounded-full px-5 py-2 mb-8">
-              <span className="font-tech text-[#ff8a1e] text-xs">//</span>
-              <span className="font-tech text-[11px] uppercase tracking-[0.28em] text-[#ffb52e]">{cms?.companyName || 'Vijaya Engineering Works'} · ISO 9001 · AGMA Q12</span>
+          <motion.div initial={{ opacity: 0, scale: 0.96, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 1.1, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="lg:col-span-5 relative hidden lg:block">
+            <div className="relative">
+              <div aria-hidden className="absolute inset-0 translate-x-5 translate-y-5 rounded-2xl border border-[#ff8a1e]/30" />
+              <div className="relative rounded-2xl overflow-hidden border border-white/15 shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)]">
+                <ResponsiveImage src={IMG_3} alt="Gear cutting with sparks at Vijaya Engineering Works" className="w-full aspect-[4/5] object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#070605]/70 via-transparent to-transparent" />
+                <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between">
+                  <div className="font-tech text-[10px] uppercase tracking-[0.28em] text-[#ffb52e]">Gear cutting — cell 04</div>
+                  <div className="flex items-center gap-2 font-tech text-[10px] uppercase tracking-[0.2em] text-emerald-300">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-vew-blink" /> In tolerance
+                  </div>
+                </div>
+              </div>
+              <span aria-hidden className="absolute -top-3 -left-2 font-tech text-[#ff8a1e] text-lg select-none">+</span>
+              <span aria-hidden className="absolute -top-3 -right-2 font-tech text-[#ff8a1e] text-lg select-none">+</span>
+              <span aria-hidden className="absolute -bottom-3 -left-2 font-tech text-[#ff8a1e] text-lg select-none">+</span>
+              <span aria-hidden className="absolute -bottom-3 -right-2 font-tech text-[#ff8a1e] text-lg select-none">+</span>
+              <div className="mt-7 flex items-center gap-3 font-tech text-[10px] tracking-[0.25em] text-[#a39e93] uppercase">
+                <span>|◀</span>
+                <span className="h-px flex-1 bg-white/20" />
+                <span>1200 mm max OD</span>
+                <span className="h-px flex-1 bg-white/20" />
+                <span>▶|</span>
+              </div>
+              <div className="animate-vew-float absolute -left-10 top-10 border border-[#ff8a1e]/30 bg-black/60 backdrop-blur-md rounded-xl px-4 py-3 shadow-[0_0_30px_-8px_rgba(255,122,26,0.5)]">
+                <div className="font-tech text-[10px] uppercase tracking-[0.24em] text-[#a39e93]">CMM report</div>
+                <div className="font-display text-xl font-bold text-emerald-300 mt-0.5">PASSED ✓</div>
+              </div>
             </div>
           </motion.div>
-          <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            className="font-display text-[clamp(3rem,9vw,7.5rem)] font-bold tracking-[-0.02em] leading-[0.92] mb-8">
-            PRECISION GEARS<br />
-            <span className="text-outline">BUILT TO YOUR</span><br />
-            <span className="text-molten drop-shadow-[0_0_45px_rgba(255,106,0,0.35)]">SPECIFICATIONS</span>
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.3 }}
-            className="text-lg md:text-2xl text-[#a39e93] mb-10 max-w-2xl font-light leading-relaxed">
-            Custom spiral bevel gears, pinions, helical gears, spur gears, and precision gear sets — manufactured from your drawings.
-          </motion.p>
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.45 }} className="flex flex-wrap gap-4">
-            <Button size="lg" onClick={() => setRoute('rfq')} className="btn-molten font-tech uppercase tracking-[0.18em] text-sm h-14 px-10 rounded-full">
-              Request a Quote <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-            <Button size="lg" variant="outline" onClick={() => setRoute('capabilities')} className="border-white/25 text-white hover:bg-white hover:text-black bg-white/5 backdrop-blur-sm h-14 px-10 text-sm rounded-full font-tech uppercase tracking-[0.18em]">
-              View Capabilities
-            </Button>
-          </motion.div>
-        </motion.div>
-        <motion.div aria-hidden initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2, duration: 1 }}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-[#a39e93]">
-          <span className="font-tech text-[10px] uppercase tracking-[0.3em]">Scroll</span>
-          <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
-            <ArrowRight className="h-4 w-4 rotate-90" />
-          </motion.div>
-        </motion.div>
+        </div>
+        <div className="relative border-t border-white/10 bg-black/40 backdrop-blur-sm">
+          <div className="container mx-auto px-4 py-3.5 flex items-center gap-8 overflow-x-auto font-tech text-[11px] tracking-[0.22em] uppercase text-[#a39e93] whitespace-nowrap">
+            <span className="flex items-center gap-2.5 text-[#ffb52e]"><span className="h-2 w-2 rounded-full bg-emerald-400 animate-vew-blink" /> Shop status: running</span>
+            <span>Tolerance ±0.002 mm</span>
+            <span>AGMA Q12 / DIN 4</span>
+            <span>Max OD 1200 mm</span>
+            <span>ISO 9001</span>
+            <span className="ml-auto hidden md:inline">Est. 30+ years</span>
+          </div>
+        </div>
       </section>
 
       {/* MARQUEE */}
@@ -500,43 +593,66 @@ function HomePage({ setRoute, cms }) {
         <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#0a0705] to-transparent" />
       </div>
 
-      {/* Trust bar */}
-      <section className="bg-[#070605] py-16 border-b border-white/5">
-        <div className="container mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {[
-            { v: <Counter to={30} suffix="+" />, l: 'Years of Precision' },
-            { v: 'Q12', l: 'AGMA Quality Grade' },
-            { v: <Counter to={1200} suffix=" mm" />, l: 'Max OD Capacity' },
-            { v: <Counter to={0.002} decimals={3} prefix="±" suffix=" mm" />, l: 'Tolerance' },
-          ].map((s, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
-              <div className="font-display text-5xl md:text-6xl font-bold tracking-tight text-molten drop-shadow-[0_0_28px_rgba(255,106,0,0.3)]">{s.v}</div>
-              <div className="font-tech text-[11px] text-[#a39e93] uppercase tracking-[0.24em] mt-3">{s.l}</div>
-            </motion.div>
-          ))}
+      {/* MANIFESTO */}
+      <section className="relative bg-[#070605] py-24 md:py-32 overflow-hidden">
+        <div className="container mx-auto px-4 max-w-5xl">
+          <FadeIn>
+            <Eyebrow>The VEW standard</Eyebrow>
+            <p className="font-display text-3xl md:text-5xl font-medium leading-[1.28] tracking-tight text-[#f5f1ea]">
+              We don&apos;t sell gears. We sell <span className="text-molten">certainty</span> — the certainty that at 3&nbsp;AM, the gear inside your machine was cut right, ground right, and <span className="text-outline">measured twice</span>.
+            </p>
+            <div className="mt-8 font-tech text-[11px] tracking-[0.32em] uppercase text-[#a39e93]">— The shop floor, every day</div>
+          </FadeIn>
         </div>
       </section>
 
-      {/* PRODUCTION PROCESS SHOWCASE */}
-      <section className="relative bg-[#0d0b09] py-28 overflow-hidden">
-        <GridBg />
-        <Orbs />
-        <div className="relative container mx-auto px-4">
-          <SectionHead center eyebrow="Our Process" title={<>From raw material to dispatch — <span className="text-molten">every stage, tracked live</span></>} sub="Once your order is confirmed, watch your gear move through 10 precision manufacturing stages." />
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-100px' }} variants={stagger}
-            className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {PRODUCTION_STAGES.map((s, i) => (
-              <motion.div key={s.name} variants={fadeUp} whileHover={{ y: -6, transition: { duration: 0.2 } }}>
-                <GlowCard className="h-full text-center p-5">
-                  <div className="font-tech text-[10px] uppercase tracking-[0.22em] text-[#ff8a1e]/80 mb-3">Stage {String(i + 1).padStart(2, '0')}</div>
-                  <div className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center mb-3 bg-gradient-to-br from-[#ff8a1e]/25 to-[#ff8a1e]/5 border border-[#ff8a1e]/40 shadow-[0_0_24px_-6px_rgba(255,122,26,0.6)]">
-                    <s.icon className="h-6 w-6 text-[#ffb52e]" />
-                  </div>
-                  <div className="font-display font-semibold text-[#f5f1ea] text-sm">{s.name}</div>
-                </GlowCard>
+      {/* STATS */}
+      <section className="bg-[#0a0806] border-y border-white/10 py-20">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
+            {[
+              { v: <Counter to={30} suffix="+" />, l: 'Years of precision', s: '// since 1994' },
+              { v: 'Q12', l: 'AGMA quality grade', s: '// certified' },
+              { v: <Counter to={1200} />, l: 'mm max OD capacity', s: '// diameter' },
+              { v: <Counter to={0.002} decimals={3} prefix="±" />, l: 'mm tolerance', s: '// accuracy' },
+            ].map((s, i) => (
+              <motion.div key={i} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1, duration: 0.7 }} className="relative pl-6">
+                <span aria-hidden className="absolute left-0 top-1 bottom-1 w-px bg-gradient-to-b from-[#ff8a1e] via-[#ff8a1e]/40 to-transparent" />
+                <div className="font-display text-6xl md:text-7xl font-bold tracking-tight text-molten drop-shadow-[0_0_28px_rgba(255,106,0,0.3)]">{s.v}</div>
+                <div className="font-tech text-xs uppercase tracking-[0.24em] text-[#f5f1ea] mt-3">{s.l}</div>
+                <div className="font-tech text-[10px] tracking-[0.24em] text-white/25 mt-1 uppercase">{s.s}</div>
               </motion.div>
             ))}
-          </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* PROCESS */}
+      <section className="relative bg-[#0d0b09] py-28 overflow-hidden">
+        <GridBg />
+        <div className="relative container mx-auto px-4">
+          <SectionHead no="02" eyebrow="Our Process" title={<>Ten stages. <span className="text-molten">Zero guesswork.</span></>} sub="Your gear travels a tracked, ten-stage line from raw stock to dispatch — follow it live from your portal." />
+        </div>
+        <div className="relative">
+          <div className="flex gap-5 overflow-x-auto snap-x px-4 md:px-[max(1rem,calc((100vw-80rem)/2+1rem))] pb-4" style={{ scrollbarWidth: 'none' }}>
+            {PRODUCTION_STAGES.map((s, i) => (
+              <div key={s.name} className="snap-start shrink-0 w-[270px]">
+                <div aria-hidden className="font-display text-7xl font-bold text-outline-faint leading-none mb-[-1.1rem] ml-2 select-none">{String(i + 1).padStart(2, '0')}</div>
+                <GlowCard className="relative">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#ff8a1e]/25 to-[#ff8a1e]/5 border border-[#ff8a1e]/40 flex items-center justify-center mb-5 shadow-[0_0_24px_-6px_rgba(255,122,26,0.6)]">
+                    <s.icon className="h-6 w-6 text-[#ffb52e]" />
+                  </div>
+                  <div className="font-tech text-[10px] uppercase tracking-[0.24em] text-[#ff8a1e]/80 mb-2">Stage {String(i + 1).padStart(2, '0')}</div>
+                  <div className="font-display font-bold text-[#f5f1ea] text-xl">{s.name}</div>
+                </GlowCard>
+              </div>
+            ))}
+            <button onClick={() => setRoute('rfq')} className="snap-start shrink-0 w-[270px] rounded-2xl border-2 border-dashed border-[#ff8a1e]/40 hover:border-[#ff8a1e] hover:bg-[#ff8a1e]/5 transition-all flex flex-col items-center justify-center gap-3 min-h-[248px] group">
+              <span className="font-display text-2xl font-bold text-[#ffb52e]">Start yours</span>
+              <span className="font-tech text-[11px] uppercase tracking-[0.24em] text-[#a39e93] group-hover:text-[#ffb52e] flex items-center gap-2">Begin RFQ <ArrowRight className="h-4 w-4" /></span>
+            </button>
+          </div>
+          <div className="container mx-auto px-4 mt-4 font-tech text-[11px] tracking-[0.3em] uppercase text-[#a39e93]">Drag / scroll →</div>
         </div>
       </section>
 
@@ -544,27 +660,34 @@ function HomePage({ setRoute, cms }) {
       <section className="relative bg-[#070605] text-white py-28 overflow-hidden">
         <Orbs />
         <div className="relative container mx-auto px-4">
-          <SectionHead eyebrow="Our Products" title={<>Engineered for <span className="text-molten">demanding industries</span></>} sub="Five precision product lines — every gear built from your drawings and specifications." />
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-100px' }} variants={stagger}
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {PRODUCTS.map(p => (
-              <motion.div key={p.key} variants={fadeUp} whileHover={{ y: -8 }} transition={{ duration: 0.3 }}>
+          <SectionHead no="03" eyebrow="Our Products" title={<>Five lines. <span className="text-molten">One obsession.</span></>} sub="Every product line below is built from your drawings — no catalog compromises." />
+          <div className="grid lg:grid-cols-3 gap-6">
+            {PRODUCTS.map((p, i) => (
+              <motion.div key={p.key} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }} variants={fadeUp}
+                className={i === 0 ? 'lg:col-span-2' : ''}>
                 <SpotCard onClick={() => setRoute('product:' + p.key)}
-                  className="overflow-hidden group cursor-pointer rounded-2xl bg-[#100d0a]/90 border border-white/10 hover:border-[#ff8a1e]/60 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_60px_-12px_rgba(255,106,0,0.4)] h-full">
-                  <div className="aspect-[4/3] overflow-hidden bg-black relative">
+                  className={`overflow-hidden group cursor-pointer rounded-2xl bg-[#100d0a]/90 border border-white/10 hover:border-[#ff8a1e]/60 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_60px_-12px_rgba(255,106,0,0.4)] h-full ${i === 0 ? 'grid md:grid-cols-2' : ''}`}>
+                  <div className={`${i === 0 ? 'h-64 md:h-full md:min-h-[320px]' : 'aspect-[16/10]'} overflow-hidden bg-black relative`}>
                     <ResponsiveImage src={p.img} alt={p.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#100d0a]/80 via-transparent to-transparent" />
+                    <div className="absolute top-4 left-4 font-tech text-[11px] tracking-[0.24em] text-[#ffb52e] bg-black/50 backdrop-blur px-3 py-1.5 rounded-full border border-[#ff8a1e]/30">{String(i + 1).padStart(2, '0')}</div>
                   </div>
-                  <div className="p-6 relative">
-                    <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[#ff8a1e]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <h3 className="font-display font-bold text-xl text-[#f5f1ea] mb-2 group-hover:text-[#ffb52e] transition-colors">{p.title}</h3>
+                  <div className="p-7 relative flex flex-col justify-center">
+                    <div className="pointer-events-none absolute inset-x-7 top-0 h-px bg-gradient-to-r from-transparent via-[#ff8a1e]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <h3 className={`font-display font-bold text-[#f5f1ea] mb-2 group-hover:text-[#ffb52e] transition-colors ${i === 0 ? 'text-3xl md:text-4xl' : 'text-xl'}`}>{p.title}</h3>
                     <p className="text-sm text-[#a39e93] line-clamp-2 leading-relaxed">{cms?.productDescriptions?.[p.key] || 'Precision manufactured to your specifications.'}</p>
-                    <div className="mt-4 text-[#ff8a1e] font-tech text-xs uppercase tracking-[0.2em] flex items-center gap-1.5 group-hover:gap-3 transition-all">Learn more <ArrowRight className="h-4 w-4" /></div>
+                    <div className="mt-4 text-[#ff8a1e] font-tech text-xs uppercase tracking-[0.2em] flex items-center gap-1.5 group-hover:gap-3 transition-all">Explore <ArrowRight className="h-4 w-4" /></div>
                   </div>
                 </SpotCard>
               </motion.div>
             ))}
-          </motion.div>
+          </div>
+          <FadeIn>
+            <button onClick={() => setRoute('rfq')} className="mt-6 w-full rounded-2xl border border-dashed border-[#ff8a1e]/40 hover:border-[#ff8a1e] hover:bg-[#ff8a1e]/5 px-8 py-6 flex items-center justify-between gap-4 text-left transition-all group">
+              <span className="font-display text-xl md:text-2xl font-bold text-[#f5f1ea]">Don&apos;t see your gear? <span className="text-molten">We cut what you draw.</span></span>
+              <span className="font-tech text-xs uppercase tracking-[0.2em] text-[#ff8a1e] flex items-center gap-2 shrink-0">Get a quote <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></span>
+            </button>
+          </FadeIn>
         </div>
       </section>
 
@@ -572,65 +695,88 @@ function HomePage({ setRoute, cms }) {
       <section className="relative bg-[#0d0b09] py-28 overflow-hidden">
         <GridBg />
         <div className="relative container mx-auto px-4">
-          <SectionHead eyebrow="Capabilities" title={<>End-to-end gear production, <span className="text-molten">in-house</span></>} sub="A complete manufacturing suite — from raw material to final inspection, all under one roof." />
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-100px' }} variants={stagger}
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {CAPABILITIES.map((c, i) => (
-              <motion.div key={i} variants={fadeUp} whileHover={{ y: -4 }}>
-                <GlowCard className="h-full">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#ff8a1e]/25 to-[#ff8a1e]/5 border border-[#ff8a1e]/40 flex items-center justify-center mb-5 shadow-[0_0_24px_-6px_rgba(255,122,26,0.6)]">
-                    <c.icon className="h-6 w-6 text-[#ffb52e]" />
-                  </div>
-                  <h3 className="font-display font-bold text-[#f5f1ea] mb-2 text-lg">{c.title}</h3>
-                  <p className="text-sm text-[#a39e93] leading-relaxed">{c.desc}</p>
-                </GlowCard>
-              </motion.div>
-            ))}
-          </motion.div>
+          <SectionHead no="04" eyebrow="Capabilities" title={<>The full stack, <span className="text-molten">under one roof.</span></>} sub="Six disciplines. One accountable shop. Tap a line to see what it covers." />
+          <FadeIn>
+            <div className="border-t border-white/10 max-w-4xl">
+              {CAPABILITIES.map((c, i) => <CapRow key={c.title} c={c} i={i} />)}
+            </div>
+          </FadeIn>
         </div>
       </section>
 
-      {/* Gallery preview */}
+      {/* GALLERY */}
       <section className="relative bg-[#070605] py-28 overflow-hidden">
         <div className="container mx-auto px-4">
           <FadeIn>
             <div className="flex items-end justify-between flex-wrap gap-4 mb-10">
               <div>
                 <Eyebrow>Gallery</Eyebrow>
-                <h2 className="font-display text-4xl md:text-5xl font-bold text-[#f5f1ea] tracking-tight">Inside our <span className="text-molten">workshop</span></h2>
+                <h2 className="font-display text-4xl md:text-6xl font-bold text-[#f5f1ea] tracking-tight">Inside the <span className="text-molten">shop</span></h2>
               </div>
-              <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full border-white/25 text-white bg-white/5 hover:bg-white hover:text-black backdrop-blur-sm font-tech uppercase tracking-[0.18em] text-xs">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
+              <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full border-white/25 text-white bg-white/5 hover:bg-white hover:text-black backdrop-blur-sm font-tech uppercase tracking-[0.18em] text-xs">Open gallery <ArrowRight className="h-4 w-4 ml-1" /></Button>
             </div>
           </FadeIn>
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {GALLERY.slice(0, 8).map((photo) => (
-              <motion.div key={photo.src} variants={fadeUp} whileHover={{ scale: 1.03 }} onClick={() => setRoute('gallery')}
-                className="aspect-square rounded-xl overflow-hidden bg-black border border-white/10 cursor-pointer hover:border-[#ff8a1e]/60 hover:shadow-[0_0_30px_-10px_rgba(255,106,0,0.5)] transition-all">
-                <ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" />
-              </motion.div>
-            ))}
-          </motion.div>
         </div>
+        <FadeIn>
+          <div className="space-y-4">
+            <div className="overflow-hidden">
+              <div className="animate-vew-marquee flex w-max gap-4 pr-4">
+                {[...GALLERY, ...GALLERY].map((photo, i) => (
+                  <button key={'a' + i} onClick={() => setRoute('gallery')} className="relative h-52 md:h-64 w-72 md:w-96 shrink-0 rounded-xl overflow-hidden border border-white/10 group hover:border-[#ff8a1e]/60 transition-colors">
+                    <ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute bottom-3 left-4 font-tech text-[11px] uppercase tracking-[0.2em] text-white opacity-0 group-hover:opacity-100 transition-opacity">{photo.caption}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="overflow-hidden">
+              <div className="animate-vew-marquee-rev flex w-max gap-4 pr-4">
+                {[...GALLERY].reverse().flatMap(p => [p, p]).map((photo, i) => (
+                  <button key={'b' + i} onClick={() => setRoute('gallery')} className="relative h-52 md:h-64 w-72 md:w-96 shrink-0 rounded-xl overflow-hidden border border-white/10 group hover:border-[#ff8a1e]/60 transition-colors">
+                    <ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute bottom-3 left-4 font-tech text-[11px] uppercase tracking-[0.2em] text-white opacity-0 group-hover:opacity-100 transition-opacity">{photo.caption}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </FadeIn>
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#070605] to-transparent" />
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[#070605] to-transparent" />
       </section>
 
-      {/* CTA */}
+      {/* CTA — engineering title block */}
       <section className="relative bg-[#070605] px-4 py-28 overflow-hidden">
-        <div className="container mx-auto">
+        <GridBg />
+        <div className="relative container mx-auto max-w-5xl">
           <FadeIn>
-            <div className="relative rounded-[2rem] overflow-hidden bg-gradient-to-br from-[#ffc53d] via-[#ff8a1e] to-[#e64a00] shadow-[0_0_100px_-20px_rgba(255,122,26,0.6)]">
-              <div className="grid md:grid-cols-2 items-center">
-                <div className="p-10 md:p-16">
-                  <div className="font-tech text-[#3a1c02] text-xs uppercase tracking-[0.32em] mb-5">// Start a project</div>
-                  <h2 className="font-display text-4xl md:text-6xl font-bold mb-5 tracking-tight leading-[0.95] text-[#160b02]">SEND US YOUR<br />GEAR DRAWING.</h2>
-                  <p className="text-[#4a2408] mb-8 text-lg font-medium">Upload PDF, STEP, DXF, DWG, JPG, or PNG. We&apos;ll review and reply with a detailed quote.</p>
-                  <button onClick={() => setRoute('rfq')} className="bg-[#160b02] text-[#ffb52e] font-tech uppercase tracking-[0.18em] text-sm h-14 px-10 rounded-full hover:bg-black transition-colors inline-flex items-center">
-                    Start Your RFQ <ArrowRight className="ml-2 h-4 w-4" />
-                  </button>
+            <div className="relative border border-white/15 bg-[#0b0906]/90 backdrop-blur shadow-[0_0_100px_-30px_rgba(255,106,0,0.35)]">
+              <span aria-hidden className="absolute -top-3 -left-2 font-tech text-[#ff8a1e] text-lg select-none">+</span>
+              <span aria-hidden className="absolute -top-3 -right-2 font-tech text-[#ff8a1e] text-lg select-none">+</span>
+              <span aria-hidden className="absolute -bottom-3 -left-2 font-tech text-[#ff8a1e] text-lg select-none">+</span>
+              <span aria-hidden className="absolute -bottom-3 -right-2 font-tech text-[#ff8a1e] text-lg select-none">+</span>
+              <div className="p-8 md:p-14">
+                <div className="flex items-center justify-between flex-wrap gap-3 mb-8 font-tech text-[11px] tracking-[0.3em] uppercase">
+                  <span className="text-[#ff8a1e]">// Request for quote</span>
+                  <span className="text-[#a39e93]">Doc. RFQ-2026</span>
                 </div>
-                <div className="relative h-72 md:h-full min-h-[320px] overflow-hidden">
-                  <ResponsiveImage src={IMG_CNC} alt="" className="absolute inset-0 w-full h-full object-cover" whileHover={{ scale: 1.05 }} transition={{ duration: 0.8 }} />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#ff8a1e] via-[#ff8a1e]/10 to-transparent" />
-                </div>
+                <h2 className="font-display text-5xl md:text-7xl font-bold tracking-tight text-[#f5f1ea] leading-[0.95] mb-6">
+                  SEND US YOUR<br /><span className="text-molten drop-shadow-[0_0_35px_rgba(255,106,0,0.35)]">GEAR DRAWING.</span>
+                </h2>
+                <p className="text-[#a39e93] text-lg font-light max-w-xl mb-10 leading-relaxed">Upload PDF, STEP, DXF, DWG, JPG, or PNG. We&apos;ll review it on the shop floor and reply with a detailed quote.</p>
+                <Button size="lg" onClick={() => setRoute('rfq')} className="btn-molten font-tech uppercase tracking-[0.18em] text-sm h-14 px-10 rounded-full">
+                  Start your RFQ <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 border-t border-white/15 font-tech">
+                {[['Scale', '1 : 1'], ['Tolerance', '±0.002 mm'], ['Material', 'Per drawing'], ['Drawn', 'VEW · Shop']].map(([k, v], i) => (
+                  <div key={k} className={`px-6 py-4 ${i < 3 ? 'md:border-r md:border-white/10' : ''} ${i % 2 === 0 ? 'border-r border-white/10' : ''}`}>
+                    <div className="text-[10px] tracking-[0.3em] text-[#a39e93] uppercase mb-1.5">{k}</div>
+                    <div className="text-[#f5f1ea] text-sm">{v}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </FadeIn>
@@ -1943,6 +2089,7 @@ function CmsEditor({ auth, cms, reloadCms }) {
 // ============== APP ==============
 function App() {
   const auth = useAuth()
+  const [booted, setBooted] = useState(false)
   const [route, setRoute] = useState('home')
   const [authAction, setAuthAction] = useState(null)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -2022,6 +2169,8 @@ function App() {
 
   return (
     <MotionConfig reducedMotion="user"><div className="min-h-screen flex flex-col">
+      <AnimatePresence>{!booted && <Preloader key="boot" onDone={() => setBooted(true)} />}</AnimatePresence>
+      <ScrollProgress />
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:p-3">Skip to content</a>
       <Nav route={route.split(':')[0]} setRoute={goRoute} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={auth.user} onLogout={() => setSignoutOpen(true)} />
       <ImpersonationBanner user={auth.user} onExit={async () => { try { await auth.exitImpersonation(); setRoute('admin'); toast.success('Exited override — back to admin') } catch (error) { toast.error(error.message) } }} />

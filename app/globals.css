@@ -242,3 +242,10 @@ code {
   z-index: 1;
 }
 .spot-card:hover::before { opacity: 1; }
+
+@keyframes vew-marquee-rev { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+.animate-vew-marquee-rev { animation: vew-marquee-rev 46s linear infinite; }
+.animate-vew-marquee-rev:hover { animation-play-state: paused; }
+
+@keyframes vew-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+.animate-vew-blink { animation: vew-blink 1.6s ease-in-out infinite; }
