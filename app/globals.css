@@ -9,6 +9,17 @@ main, section, .grid > *, .flex > * { min-width: 0; }
 img, video { max-width: 100%; }
 :focus-visible { outline: 3px solid #b45309; outline-offset: 3px; }
 [role="dialog"] { max-width: calc(100vw - 2rem); max-height: 90dvh; overflow-y: auto; }
+
+/* Futuristic site chrome */
+html { scroll-behavior: smooth; }
+::selection { background: rgba(245, 158, 11, 0.35); color: #fff; }
+@keyframes vew-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.animate-vew-marquee { animation: vew-marquee 32s linear infinite; }
+.animate-vew-marquee:hover { animation-play-state: paused; }
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: #05070c; }
+::-webkit-scrollbar-thumb { background: #26303d; border-radius: 8px; border: 2px solid #05070c; }
+::-webkit-scrollbar-thumb:hover { background: #f59e0b; }
 @media (max-width: 640px) {
   input, textarea, select { font-size: 16px !important; }
   button, a[href^="tel:"], a[href^="mailto:"] { min-height: 44px; }
