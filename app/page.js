@@ -636,18 +636,53 @@ function CapabilitiesPage() {
 }
 
 function GalleryPage() {
+  const [lightbox, setLightbox] = useState(null)
+  useEffect(() => {
+    if (lightbox === null) return
+    const onKey = e => {
+      if (e.key === 'Escape') setLightbox(null)
+      if (e.key === 'ArrowRight') setLightbox(i => (i + 1) % GALLERY.length)
+      if (e.key === 'ArrowLeft') setLightbox(i => (i - 1 + GALLERY.length) % GALLERY.length)
+    }
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = '' }
+  }, [lightbox])
+  const active = lightbox === null ? null : GALLERY[lightbox]
   return (
     <div className="container mx-auto px-4 py-20">
       <FadeIn><h1 className="text-5xl font-bold text-slate-900 mb-3 tracking-tight">Gallery</h1>
-      <p className="text-slate-600 mb-12 text-lg max-w-2xl">Photos of our equipment, machining work, and gear components.</p></FadeIn>
+      <p className="text-slate-600 mb-12 text-lg max-w-2xl">Photos of our equipment, machining work, and gear components. Click any photo to enlarge it.</p></FadeIn>
       <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {GALLERY.map(photo => (
-          <motion.figure key={photo.src} variants={fadeUp} whileHover={{ y: -3 }} className="rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm">
+        {GALLERY.map((photo, i) => (
+          <motion.figure key={photo.src} variants={fadeUp} whileHover={{ y: -3 }} onClick={() => setLightbox(i)} className="rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm cursor-pointer">
             <div className="aspect-square bg-slate-900"><ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" /></div>
             <figcaption className="px-3 py-2 text-sm font-medium text-slate-700">{photo.caption}</figcaption>
           </motion.figure>
         ))}
       </motion.div>
+      <AnimatePresence>
+        {active && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setLightbox(null)}
+            className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <button aria-label="Close" onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition">
+              <X className="h-6 w-6" />
+            </button>
+            <button aria-label="Previous photo" onClick={e => { e.stopPropagation(); setLightbox((lightbox - 1 + GALLERY.length) % GALLERY.length) }} className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition">
+              <ArrowLeft className="h-6 w-6" />
+            </button>
+            <motion.img key={active.src} src={active.src} alt={active.alt} onClick={e => e.stopPropagation()}
+              initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.25 }}
+              className="max-h-[82vh] max-w-[94vw] rounded-xl shadow-2xl object-contain" />
+            <button aria-label="Next photo" onClick={e => { e.stopPropagation(); setLightbox((lightbox + 1) % GALLERY.length) }} className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition">
+              <ArrowRight className="h-6 w-6" />
+            </button>
+            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/90 text-sm bg-white/10 rounded-full px-4 py-1.5 whitespace-nowrap">
+              {active.caption} · {lightbox + 1} of {GALLERY.length}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
