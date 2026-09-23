@@ -28,12 +28,12 @@ import {
 } from 'lucide-react'
 
 // ============== IMAGES ==============
-const HERO_IMG = 'https://images.unsplash.com/photo-1524514587686-e2909d726e9b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwxfHxpbmR1c3RyaWFsJTIwZ2VhcnN8ZW58MHx8fGJsYWNrfDE3ODg0ODg4MTJ8MA&ixlib=rb-4.1.0&q=85'
-const IMG_2 = 'https://images.unsplash.com/photo-1563641749712-028dfeab14b3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHwzfHxpbmR1c3RyaWFsJTIwZ2VhcnN8ZW58MHx8fGJsYWNrfDE3ODg0ODg4MTJ8MA&ixlib=rb-4.1.0&q=85'
-const IMG_3 = 'https://images.unsplash.com/photo-1567093322102-6bdd32fba67d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzd8MHwxfHNlYXJjaHw0fHxpbmR1c3RyaWFsJTIwZ2VhcnN8ZW58MHx8fGJsYWNrfDE3ODg0ODg4MTJ8MA&ixlib=rb-4.1.0&q=85'
-const IMG_4 = 'https://images.unsplash.com/photo-1565954786194-d22abeaac3ae?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwyfHxnZWFyJTIwbWFudWZhY3R1cmluZ3xlbnwwfHx8YmxhY2t8MTc4ODQ4ODgxMnww&ixlib=rb-4.1.0&q=85'
-const IMG_CNC = 'https://images.unsplash.com/photo-1652888510609-ed2d2ad64d6b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwzfHxDTkMlMjBtYWNoaW5lfGVufDB8fHxibGFja3wxNzg4NDg4ODE3fDA&ixlib=rb-4.1.0&q=85'
-const IMG_CNC2 = 'https://images.unsplash.com/photo-1548683726-203119be6a39?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwyfHxDTkMlMjBtYWNoaW5lfGVufDB8fHxibGFja3wxNzg4NDg4ODE3fDA&ixlib=rb-4.1.0&q=85'
+const HERO_IMG = '/hero/hero-workshop.jpg'
+const IMG_2 = '/hero/gears-closeup.jpg'
+const IMG_3 = '/hero/gear-cutting-sparks.jpg'
+const IMG_4 = '/hero/factory-dusk.jpg'
+const IMG_CNC = '/workshop/gear-cutting-machine.jpg'
+const IMG_CNC2 = '/workshop/lathe-setup.jpg'
 const GALLERY = [
   { src: '/workshop/finished-gear-components.jpg', alt: 'Finished gear components at Vijaya Engineering Works', caption: 'Finished gears' },
   { src: '/workshop/workshop-machinery.jpg', alt: 'Machine tools on the Vijaya Engineering Works production floor', caption: 'Workshop machinery' },
