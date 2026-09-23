@@ -217,9 +217,10 @@ function GearLogo({ className = 'h-8 w-8', spin = false }) {
 // ============== FUTURISTIC UI PRIMITIVES ==============
 function Eyebrow({ children, className = '' }) {
   return (
-    <div className={`flex items-center gap-3 mb-5 ${className}`}>
-      <span className="h-px w-10 bg-gradient-to-r from-amber-400 to-amber-400/0 shadow-[0_0_12px_rgba(251,191,36,0.8)]" />
-      <span className="text-amber-400 font-semibold text-xs uppercase tracking-[0.28em]">{children}</span>
+    <div className={`flex items-center gap-3 mb-6 ${className}`}>
+      <span className="font-tech text-[#ff8a1e] text-sm select-none">//</span>
+      <span className="font-tech text-[#ffb52e] font-medium text-xs uppercase tracking-[0.32em]">{children}</span>
+      <span className="h-px w-20 bg-gradient-to-r from-[#ff8a1e]/70 to-transparent" />
     </div>
   )
 }
@@ -227,10 +228,10 @@ function Eyebrow({ children, className = '' }) {
 function SectionHead({ eyebrow, title, sub, center = false }) {
   return (
     <FadeIn>
-      <div className={`max-w-3xl mb-14 ${center ? 'mx-auto text-center' : ''}`}>
+      <div className={`max-w-4xl mb-16 ${center ? 'mx-auto text-center' : ''}`}>
         <Eyebrow className={center ? 'justify-center' : ''}>{eyebrow}</Eyebrow>
-        <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-white leading-[1.05]">{title}</h2>
-        {sub && <p className="text-slate-400 mt-5 text-lg font-light leading-relaxed">{sub}</p>}
+        <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tight text-[#f5f1ea] leading-[1.02]">{title}</h2>
+        {sub && <p className={`text-[#a39e93] mt-5 text-lg font-light leading-relaxed max-w-2xl ${center ? 'mx-auto' : ''}`}>{sub}</p>}
       </div>
     </FadeIn>
   )
@@ -240,11 +241,11 @@ function Orbs() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
       <motion.div animate={{ x: [0, 50, 0], y: [0, -30, 0] }} transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -top-40 -left-32 h-[520px] w-[520px] rounded-full bg-amber-500/[0.13] blur-[140px]" />
+        className="absolute -top-40 -left-32 h-[520px] w-[520px] rounded-full bg-[#ff6a00]/[0.13] blur-[140px]" />
       <motion.div animate={{ x: [0, -60, 0], y: [0, 40, 0] }} transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute top-1/4 -right-48 h-[620px] w-[620px] rounded-full bg-orange-700/[0.12] blur-[160px]" />
+        className="absolute top-1/4 -right-48 h-[620px] w-[620px] rounded-full bg-[#ffb52e]/[0.09] blur-[160px]" />
       <motion.div animate={{ x: [0, 30, 0], y: [0, 30, 0] }} transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -bottom-40 left-1/3 h-[460px] w-[460px] rounded-full bg-amber-300/[0.07] blur-[120px]" />
+        className="absolute -bottom-40 left-1/3 h-[460px] w-[460px] rounded-full bg-[#ff3d00]/[0.09] blur-[120px]" />
     </div>
   )
 }
@@ -253,12 +254,16 @@ function GridBg() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0"
       style={{
-        backgroundImage: 'linear-gradient(rgba(148,163,184,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.08) 1px, transparent 1px)',
+        backgroundImage: 'linear-gradient(rgba(255,180,100,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(255,180,100,0.055) 1px, transparent 1px)',
         backgroundSize: '54px 54px',
         maskImage: 'radial-gradient(ellipse 90% 75% at 50% 25%, black 25%, transparent 78%)',
         WebkitMaskImage: 'radial-gradient(ellipse 90% 75% at 50% 25%, black 25%, transparent 78%)',
       }} />
   )
+}
+
+function Noise() {
+  return <div aria-hidden className="noise-fx pointer-events-none absolute inset-0 opacity-[0.05]" />
 }
 
 function Counter({ to, decimals = 0, prefix = '', suffix = '', duration = 1.8 }) {
@@ -289,8 +294,25 @@ function Counter({ to, decimals = 0, prefix = '', suffix = '', duration = 1.8 })
 
 function GlowCard({ children, className = '' }) {
   return (
-    <div className={`group relative rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-7 overflow-hidden transition-all duration-300 hover:border-amber-500/50 hover:bg-white/[0.05] hover:shadow-[0_0_50px_-12px_rgba(245,158,11,0.35)] ${className}`}>
-      <div className="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full bg-amber-500/10 blur-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+    <div className={`group relative rounded-2xl border border-white/10 bg-[#100d0a]/90 backdrop-blur-sm p-7 overflow-hidden transition-all duration-300 hover:border-[#ff8a1e]/60 hover:shadow-[0_0_60px_-12px_rgba(255,106,0,0.45)] hover:-translate-y-1 ${className}`}>
+      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#ff8a1e]/70 to-transparent opacity-60" />
+      <div className="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#ff6a00]/10 blur-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+      {children}
+    </div>
+  )
+}
+
+function SpotCard({ children, className = '', onClick }) {
+  const ref = useRef(null)
+  const onMove = (e) => {
+    const el = ref.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    el.style.setProperty('--mx', `${e.clientX - r.left}px`)
+    el.style.setProperty('--my', `${e.clientY - r.top}px`)
+  }
+  return (
+    <div ref={ref} onMouseMove={onMove} onClick={onClick} className={`spot-card ${className}`}>
       {children}
     </div>
   )
@@ -317,7 +339,7 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
         <nav className="hidden lg:flex items-center gap-1">
           {links.map(l => (
             <button key={l.key} onClick={() => setRoute(l.key)}
-              className={`px-4 py-2 text-sm rounded-full transition ${route === l.key ? 'text-amber-300 bg-amber-500/15 shadow-[0_0_18px_-4px_rgba(245,158,11,0.6)]' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}>{l.label}</button>
+              className={`px-4 py-2 text-sm rounded-full transition ${route === l.key ? 'text-[#ffb52e] bg-[#ff8a1e]/15 shadow-[0_0_18px_-4px_rgba(255,122,26,0.6)]' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}>{l.label}</button>
           ))}
         </nav>
         <div className="flex items-center gap-2">
@@ -331,7 +353,7 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
           ) : (
             <Button variant="ghost" size="sm" onClick={() => setRoute('login')} className="text-slate-300 hover:text-white hover:bg-slate-800 hidden sm:inline-flex"><LogIn className="h-4 w-4 mr-1" /> Sign In</Button>
           )}
-          <Button onClick={() => setRoute('rfq')} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold hidden sm:inline-flex rounded-full shadow-[0_0_28px_-6px_rgba(245,158,11,0.8)] hover:shadow-[0_0_36px_-6px_rgba(245,158,11,1)] transition-shadow">Request a Quote</Button>
+          <Button onClick={() => setRoute('rfq')} className="btn-molten font-tech uppercase tracking-[0.14em] text-xs hidden sm:inline-flex rounded-full h-10 px-6">Request a Quote</Button>
           <button aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} aria-controls="mobile-menu" className="lg:hidden text-white p-2" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
         </div>
       </div>
@@ -344,7 +366,7 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
                 <button onClick={() => { setRoute(isStaff(user) ? 'admin' : 'portal'); setMobileOpen(false) }} className="px-3 py-2 text-left text-slate-300">My Account</button>
                 <button onClick={onLogout} className="px-3 py-2 text-left text-slate-300">Sign Out</button>
               </> : <button onClick={() => { setRoute('login'); setMobileOpen(false) }} className="px-3 py-2 text-left text-slate-300">Sign In</button>}
-              <Button onClick={() => { setRoute('rfq'); setMobileOpen(false) }} className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold mt-2">Request a Quote</Button>
+              <Button onClick={() => { setRoute('rfq'); setMobileOpen(false) }} className="btn-molten font-tech uppercase tracking-[0.14em] text-xs mt-2 rounded-full">Request a Quote</Button>
             </div>
           </motion.div>
         )}
@@ -355,8 +377,8 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
 
 function Footer({ setRoute, cms }) {
   return (
-    <footer className="relative bg-[#04060a] text-slate-400 border-t border-white/5">
-      <div aria-hidden className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-amber-500/60 to-transparent" />
+    <footer className="relative bg-[#060504] text-slate-400 border-t border-white/5 overflow-hidden">
+      <div aria-hidden className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#ff8a1e]/80 to-transparent shadow-[0_0_24px_rgba(255,122,26,0.8)]" />
       <div className="container mx-auto px-4 py-14 grid md:grid-cols-4 gap-8">
         <div>
           <div className="flex items-center gap-2 mb-3"><GearLogo /><div className="text-white font-bold">{cms?.companyName || 'Vijaya Engineering Works'}</div></div>
@@ -387,6 +409,9 @@ function Footer({ setRoute, cms }) {
           </ul>
         </div>
       </div>
+      <div aria-hidden className="select-none pointer-events-none overflow-hidden border-t border-white/5">
+        <div className="font-display font-bold text-outline-faint text-[24vw] leading-[0.78] text-center tracking-tight -mb-[5vw]">VEW</div>
+      </div>
       <div className="border-t border-slate-800 py-4 text-center text-xs">© {new Date().getFullYear()} {cms?.companyName || 'Vijaya Engineering Works'}. All rights reserved.</div>
     </footer>
   )
@@ -403,46 +428,54 @@ function HomePage({ setRoute, cms }) {
   return (
     <div>
       {/* HERO */}
-      <section ref={heroRef} className="relative bg-[#05070c] text-white overflow-hidden min-h-[94vh] flex items-center">
+      <section ref={heroRef} className="relative bg-[#070605] text-white overflow-hidden min-h-[94vh] flex items-center">
         <motion.div style={{ y: heroY, scale: heroScale }} className="absolute inset-0">
           <ResponsiveImage src={HERO_IMG} alt="" priority sizes="100vw" className="w-full h-full object-cover opacity-25" />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#05070c]/60 via-[#05070c]/80 to-[#05070c]" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#05070c]/70 via-transparent to-[#05070c]/30" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#070605]/60 via-[#070605]/80 to-[#070605]" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#070605]/70 via-transparent to-[#070605]/30" />
         </motion.div>
         <GridBg />
         <Orbs />
-        <motion.div aria-hidden style={{ y: heroY }} className="pointer-events-none absolute -right-48 top-1/2 hidden -translate-y-1/2 opacity-[0.08] lg:block">
+        <Noise />
+        <motion.div aria-hidden style={{ y: heroY }} className="pointer-events-none absolute -right-48 top-1/2 hidden -translate-y-1/2 opacity-[0.10] lg:block">
           <motion.div animate={{ rotate: 360 }} transition={{ duration: 70, repeat: Infinity, ease: 'linear' }}>
-            <Cog className="h-[600px] w-[600px] text-amber-400" strokeWidth={0.35} />
+            <Cog className="h-[600px] w-[600px] text-[#ff8a1e]" strokeWidth={0.35} />
           </motion.div>
         </motion.div>
-        <motion.div style={{ opacity: heroOpacity }} className="relative container mx-auto px-4 max-w-5xl py-28">
+        <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
+          <div className="animate-vew-float absolute top-[24%] right-[12%] font-tech text-[11px] tracking-[0.2em] uppercase text-[#ffb52e] border border-[#ff8a1e]/30 bg-white/[0.04] backdrop-blur-md px-4 py-2.5 rounded-full shadow-[0_0_30px_-8px_rgba(255,122,26,0.5)]">±0.002 mm tolerance</div>
+          <div className="animate-vew-float absolute top-[46%] right-[30%] font-tech text-[11px] tracking-[0.2em] uppercase text-[#ffb52e] border border-[#ff8a1e]/30 bg-white/[0.04] backdrop-blur-md px-4 py-2.5 rounded-full shadow-[0_0_30px_-8px_rgba(255,122,26,0.5)]" style={{ animationDelay: '-2s' }}>1200 mm max OD</div>
+          <div className="animate-vew-float absolute top-[64%] right-[10%] font-tech text-[11px] tracking-[0.2em] uppercase text-[#ffb52e] border border-[#ff8a1e]/30 bg-white/[0.04] backdrop-blur-md px-4 py-2.5 rounded-full shadow-[0_0_30px_-8px_rgba(255,122,26,0.5)]" style={{ animationDelay: '-4s' }}>AGMA Q12 grade</div>
+        </div>
+        <motion.div style={{ opacity: heroOpacity }} className="relative container mx-auto px-4 max-w-6xl py-28">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}>
-            <Badge className="bg-amber-500/10 text-amber-300 border-amber-500/30 mb-7 hover:bg-amber-500/10 px-4 py-1.5 backdrop-blur-sm shadow-[0_0_24px_-6px_rgba(245,158,11,0.5)]">
-              <Sparkles className="h-3 w-3 mr-1.5" /> {cms?.companyName || 'Vijaya Engineering Works'} · ISO 9001 · AGMA Q12
-            </Badge>
+            <div className="inline-flex items-center gap-2.5 border border-[#ff8a1e]/30 bg-white/[0.04] backdrop-blur-md rounded-full px-5 py-2 mb-8">
+              <span className="font-tech text-[#ff8a1e] text-xs">//</span>
+              <span className="font-tech text-[11px] uppercase tracking-[0.28em] text-[#ffb52e]">{cms?.companyName || 'Vijaya Engineering Works'} · ISO 9001 · AGMA Q12</span>
+            </div>
           </motion.div>
           <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-[-0.03em] leading-[0.95] mb-7">
-            Precision Gears<br />
-            Built to Your <span className="bg-gradient-to-r from-amber-200 via-amber-400 to-orange-500 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(245,158,11,0.35)]">Specifications</span>
+            className="font-display text-[clamp(3rem,9vw,7.5rem)] font-bold tracking-[-0.02em] leading-[0.92] mb-8">
+            PRECISION GEARS<br />
+            <span className="text-outline">BUILT TO YOUR</span><br />
+            <span className="text-molten drop-shadow-[0_0_45px_rgba(255,106,0,0.35)]">SPECIFICATIONS</span>
           </motion.h1>
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.3 }}
-            className="text-lg md:text-2xl text-slate-300 mb-10 max-w-2xl font-light leading-relaxed">
+            className="text-lg md:text-2xl text-[#a39e93] mb-10 max-w-2xl font-light leading-relaxed">
             Custom spiral bevel gears, pinions, helical gears, spur gears, and precision gear sets — manufactured from your drawings.
           </motion.p>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.45 }} className="flex flex-wrap gap-4">
-            <Button size="lg" onClick={() => setRoute('rfq')} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold h-12 px-8 text-base rounded-full shadow-[0_0_40px_-8px_rgba(245,158,11,0.8)] hover:shadow-[0_0_55px_-8px_rgba(245,158,11,1)] transition-shadow">
+            <Button size="lg" onClick={() => setRoute('rfq')} className="btn-molten font-tech uppercase tracking-[0.18em] text-sm h-14 px-10 rounded-full">
               Request a Quote <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
-            <Button size="lg" variant="outline" onClick={() => setRoute('capabilities')} className="border-white/20 text-white hover:bg-white hover:text-slate-900 bg-white/5 backdrop-blur-sm h-12 px-8 text-base rounded-full">
+            <Button size="lg" variant="outline" onClick={() => setRoute('capabilities')} className="border-white/25 text-white hover:bg-white hover:text-black bg-white/5 backdrop-blur-sm h-14 px-10 text-sm rounded-full font-tech uppercase tracking-[0.18em]">
               View Capabilities
             </Button>
           </motion.div>
         </motion.div>
         <motion.div aria-hidden initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.2, duration: 1 }}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-slate-500">
-          <span className="text-[10px] uppercase tracking-[0.3em]">Scroll</span>
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-[#a39e93]">
+          <span className="font-tech text-[10px] uppercase tracking-[0.3em]">Scroll</span>
           <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
             <ArrowRight className="h-4 w-4 rotate-90" />
           </motion.div>
@@ -450,24 +483,25 @@ function HomePage({ setRoute, cms }) {
       </section>
 
       {/* MARQUEE */}
-      <div className="relative overflow-hidden border-y border-amber-500/15 bg-[#080b12] py-4">
+      <div className="relative overflow-hidden border-y border-[#ff8a1e]/25 bg-[#0a0705] py-6">
         <div className="animate-vew-marquee flex w-max whitespace-nowrap">
           {[0, 1].map(dup => (
             <div key={dup} aria-hidden={dup === 1} className="flex items-center">
-              {['Spiral Bevel Gears', 'Helical Gears', 'Spur Gears', 'Precision Grinding', 'CNC Machining', 'Heat Treatment', 'CMM Inspection', 'Custom Gear Sets'].map(t => (
-                <span key={t + dup} className="mx-7 flex items-center gap-7 text-[13px] font-semibold uppercase tracking-[0.24em] text-amber-400/70">
-                  {t}<Cog className="h-4 w-4 text-amber-500/40" />
+              {['Spiral Bevel Gears', 'Helical Gears', 'Spur Gears', 'Precision Grinding', 'CNC Machining', 'Heat Treatment', 'CMM Inspection', 'Custom Gear Sets'].map((t, i) => (
+                <span key={t + dup} className="mx-8 flex items-center gap-16">
+                  <span className={`font-display text-4xl md:text-5xl font-bold uppercase tracking-tight ${i % 2 === 0 ? 'text-outline' : 'text-molten'}`}>{t}</span>
+                  <Cog className="h-7 w-7 text-[#ff8a1e]/50" />
                 </span>
               ))}
             </div>
           ))}
         </div>
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#080b12] to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#080b12] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#0a0705] to-transparent" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#0a0705] to-transparent" />
       </div>
 
       {/* Trust bar */}
-      <section className="bg-[#05070c] py-14 border-b border-white/5">
+      <section className="bg-[#070605] py-16 border-b border-white/5">
         <div className="container mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {[
             { v: <Counter to={30} suffix="+" />, l: 'Years of Precision' },
@@ -476,28 +510,29 @@ function HomePage({ setRoute, cms }) {
             { v: <Counter to={0.002} decimals={3} prefix="±" suffix=" mm" />, l: 'Tolerance' },
           ].map((s, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}>
-              <div className="text-3xl md:text-4xl font-bold tracking-tight text-white drop-shadow-[0_0_20px_rgba(245,158,11,0.25)]">{s.v}</div>
-              <div className="text-xs md:text-sm text-slate-500 uppercase tracking-[0.18em] mt-2">{s.l}</div>
+              <div className="font-display text-5xl md:text-6xl font-bold tracking-tight text-molten drop-shadow-[0_0_28px_rgba(255,106,0,0.3)]">{s.v}</div>
+              <div className="font-tech text-[11px] text-[#a39e93] uppercase tracking-[0.24em] mt-3">{s.l}</div>
             </motion.div>
           ))}
         </div>
       </section>
 
       {/* PRODUCTION PROCESS SHOWCASE */}
-      <section className="relative bg-[#070a11] py-28 overflow-hidden">
+      <section className="relative bg-[#0d0b09] py-28 overflow-hidden">
         <GridBg />
+        <Orbs />
         <div className="relative container mx-auto px-4">
-          <SectionHead center eyebrow="Our Process" title="From raw material to dispatch — every stage, tracked live" sub="Once your order is confirmed, watch your gear move through 10 precision manufacturing stages." />
+          <SectionHead center eyebrow="Our Process" title={<>From raw material to dispatch — <span className="text-molten">every stage, tracked live</span></>} sub="Once your order is confirmed, watch your gear move through 10 precision manufacturing stages." />
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-100px' }} variants={stagger}
             className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {PRODUCTION_STAGES.map((s, i) => (
               <motion.div key={s.name} variants={fadeUp} whileHover={{ y: -6, transition: { duration: 0.2 } }}>
                 <GlowCard className="h-full text-center p-5">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-500/70 mb-3">Stage {String(i + 1).padStart(2, '0')}</div>
-                  <div className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center mb-3 bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 shadow-[0_0_24px_-6px_rgba(245,158,11,0.5)]">
-                    <s.icon className="h-6 w-6 text-amber-400" />
+                  <div className="font-tech text-[10px] uppercase tracking-[0.22em] text-[#ff8a1e]/80 mb-3">Stage {String(i + 1).padStart(2, '0')}</div>
+                  <div className="w-12 h-12 mx-auto rounded-xl flex items-center justify-center mb-3 bg-gradient-to-br from-[#ff8a1e]/25 to-[#ff8a1e]/5 border border-[#ff8a1e]/40 shadow-[0_0_24px_-6px_rgba(255,122,26,0.6)]">
+                    <s.icon className="h-6 w-6 text-[#ffb52e]" />
                   </div>
-                  <div className="font-semibold text-white text-sm">{s.name}</div>
+                  <div className="font-display font-semibold text-[#f5f1ea] text-sm">{s.name}</div>
                 </GlowCard>
               </motion.div>
             ))}
@@ -506,25 +541,27 @@ function HomePage({ setRoute, cms }) {
       </section>
 
       {/* PRODUCTS */}
-      <section className="relative bg-[#05070c] text-white py-28 overflow-hidden">
+      <section className="relative bg-[#070605] text-white py-28 overflow-hidden">
         <Orbs />
         <div className="relative container mx-auto px-4">
-          <SectionHead eyebrow="Our Products" title="Engineered for demanding industries" sub="Five precision product lines — every gear built from your drawings and specifications." />
+          <SectionHead eyebrow="Our Products" title={<>Engineered for <span className="text-molten">demanding industries</span></>} sub="Five precision product lines — every gear built from your drawings and specifications." />
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-100px' }} variants={stagger}
             className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {PRODUCTS.map(p => (
               <motion.div key={p.key} variants={fadeUp} whileHover={{ y: -8 }} transition={{ duration: 0.3 }}>
-                <Card className="overflow-hidden group cursor-pointer bg-white/[0.03] border-white/10 hover:border-amber-500/60 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_60px_-12px_rgba(245,158,11,0.4)] h-full" onClick={() => setRoute('product:' + p.key)}>
-                  <div className="aspect-[4/3] overflow-hidden bg-slate-950 relative">
+                <SpotCard onClick={() => setRoute('product:' + p.key)}
+                  className="overflow-hidden group cursor-pointer rounded-2xl bg-[#100d0a]/90 border border-white/10 hover:border-[#ff8a1e]/60 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_60px_-12px_rgba(255,106,0,0.4)] h-full">
+                  <div className="aspect-[4/3] overflow-hidden bg-black relative">
                     <ResponsiveImage src={p.img} alt={p.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#05070c]/70 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#100d0a]/80 via-transparent to-transparent" />
                   </div>
-                  <CardContent className="p-6">
-                    <h3 className="font-bold text-xl text-white mb-2 group-hover:text-amber-300 transition-colors">{p.title}</h3>
-                    <p className="text-sm text-slate-400 line-clamp-2 leading-relaxed">{cms?.productDescriptions?.[p.key] || 'Precision manufactured to your specifications.'}</p>
-                    <div className="mt-4 text-amber-400 text-sm font-semibold flex items-center gap-1 group-hover:gap-2.5 transition-all">Learn more <ArrowRight className="h-4 w-4" /></div>
-                  </CardContent>
-                </Card>
+                  <div className="p-6 relative">
+                    <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-[#ff8a1e]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <h3 className="font-display font-bold text-xl text-[#f5f1ea] mb-2 group-hover:text-[#ffb52e] transition-colors">{p.title}</h3>
+                    <p className="text-sm text-[#a39e93] line-clamp-2 leading-relaxed">{cms?.productDescriptions?.[p.key] || 'Precision manufactured to your specifications.'}</p>
+                    <div className="mt-4 text-[#ff8a1e] font-tech text-xs uppercase tracking-[0.2em] flex items-center gap-1.5 group-hover:gap-3 transition-all">Learn more <ArrowRight className="h-4 w-4" /></div>
+                  </div>
+                </SpotCard>
               </motion.div>
             ))}
           </motion.div>
@@ -532,20 +569,20 @@ function HomePage({ setRoute, cms }) {
       </section>
 
       {/* CAPABILITIES */}
-      <section className="relative bg-[#070a11] py-28 overflow-hidden">
+      <section className="relative bg-[#0d0b09] py-28 overflow-hidden">
         <GridBg />
         <div className="relative container mx-auto px-4">
-          <SectionHead eyebrow="Capabilities" title="End-to-end gear production, in-house" sub="A complete manufacturing suite — from raw material to final inspection, all under one roof." />
+          <SectionHead eyebrow="Capabilities" title={<>End-to-end gear production, <span className="text-molten">in-house</span></>} sub="A complete manufacturing suite — from raw material to final inspection, all under one roof." />
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-100px' }} variants={stagger}
             className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {CAPABILITIES.map((c, i) => (
               <motion.div key={i} variants={fadeUp} whileHover={{ y: -4 }}>
                 <GlowCard className="h-full">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 flex items-center justify-center mb-5 shadow-[0_0_24px_-6px_rgba(245,158,11,0.5)]">
-                    <c.icon className="h-6 w-6 text-amber-400" />
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#ff8a1e]/25 to-[#ff8a1e]/5 border border-[#ff8a1e]/40 flex items-center justify-center mb-5 shadow-[0_0_24px_-6px_rgba(255,122,26,0.6)]">
+                    <c.icon className="h-6 w-6 text-[#ffb52e]" />
                   </div>
-                  <h3 className="font-bold text-white mb-2 text-lg">{c.title}</h3>
-                  <p className="text-sm text-slate-400 leading-relaxed">{c.desc}</p>
+                  <h3 className="font-display font-bold text-[#f5f1ea] mb-2 text-lg">{c.title}</h3>
+                  <p className="text-sm text-[#a39e93] leading-relaxed">{c.desc}</p>
                 </GlowCard>
               </motion.div>
             ))}
@@ -554,21 +591,21 @@ function HomePage({ setRoute, cms }) {
       </section>
 
       {/* Gallery preview */}
-      <section className="relative bg-[#05070c] py-28 overflow-hidden">
+      <section className="relative bg-[#070605] py-28 overflow-hidden">
         <div className="container mx-auto px-4">
           <FadeIn>
             <div className="flex items-end justify-between flex-wrap gap-4 mb-10">
               <div>
                 <Eyebrow>Gallery</Eyebrow>
-                <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight">Inside our workshop</h2>
+                <h2 className="font-display text-4xl md:text-5xl font-bold text-[#f5f1ea] tracking-tight">Inside our <span className="text-molten">workshop</span></h2>
               </div>
-              <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full border-white/20 text-white bg-white/5 hover:bg-white hover:text-slate-900 backdrop-blur-sm">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
+              <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full border-white/25 text-white bg-white/5 hover:bg-white hover:text-black backdrop-blur-sm font-tech uppercase tracking-[0.18em] text-xs">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
             </div>
           </FadeIn>
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {GALLERY.slice(0, 8).map((photo) => (
               <motion.div key={photo.src} variants={fadeUp} whileHover={{ scale: 1.03 }} onClick={() => setRoute('gallery')}
-                className="aspect-square rounded-xl overflow-hidden bg-slate-900 border border-white/10 cursor-pointer hover:border-amber-500/50 hover:shadow-[0_0_30px_-10px_rgba(245,158,11,0.5)] transition-all">
+                className="aspect-square rounded-xl overflow-hidden bg-black border border-white/10 cursor-pointer hover:border-[#ff8a1e]/60 hover:shadow-[0_0_30px_-10px_rgba(255,106,0,0.5)] transition-all">
                 <ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" />
               </motion.div>
             ))}
@@ -577,24 +614,22 @@ function HomePage({ setRoute, cms }) {
       </section>
 
       {/* CTA */}
-      <section className="relative bg-[#05070c] px-4 py-28 overflow-hidden">
+      <section className="relative bg-[#070605] px-4 py-28 overflow-hidden">
         <div className="container mx-auto">
           <FadeIn>
-            <div className="relative rounded-[2rem] overflow-hidden border border-amber-500/20 bg-gradient-to-br from-[#0b0f18] to-[#05070c]">
-              <Orbs />
-              <GridBg />
-              <div className="relative grid md:grid-cols-2 items-center">
-                <div className="p-10 md:p-16 text-white">
-                  <Eyebrow>Start a project</Eyebrow>
-                  <h2 className="text-3xl md:text-5xl font-bold mb-5 tracking-tight leading-tight">Send us your <span className="bg-gradient-to-r from-amber-200 to-amber-500 bg-clip-text text-transparent">gear drawing.</span></h2>
-                  <p className="text-slate-400 mb-8 text-lg font-light">Upload PDF, STEP, DXF, DWG, JPG, or PNG. We&apos;ll review and reply with a detailed quote.</p>
-                  <Button size="lg" onClick={() => setRoute('rfq')} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold h-12 px-8 rounded-full shadow-[0_0_40px_-8px_rgba(245,158,11,0.8)] hover:shadow-[0_0_55px_-8px_rgba(245,158,11,1)] transition-shadow">
+            <div className="relative rounded-[2rem] overflow-hidden bg-gradient-to-br from-[#ffc53d] via-[#ff8a1e] to-[#e64a00] shadow-[0_0_100px_-20px_rgba(255,122,26,0.6)]">
+              <div className="grid md:grid-cols-2 items-center">
+                <div className="p-10 md:p-16">
+                  <div className="font-tech text-[#3a1c02] text-xs uppercase tracking-[0.32em] mb-5">// Start a project</div>
+                  <h2 className="font-display text-4xl md:text-6xl font-bold mb-5 tracking-tight leading-[0.95] text-[#160b02]">SEND US YOUR<br />GEAR DRAWING.</h2>
+                  <p className="text-[#4a2408] mb-8 text-lg font-medium">Upload PDF, STEP, DXF, DWG, JPG, or PNG. We&apos;ll review and reply with a detailed quote.</p>
+                  <button onClick={() => setRoute('rfq')} className="bg-[#160b02] text-[#ffb52e] font-tech uppercase tracking-[0.18em] text-sm h-14 px-10 rounded-full hover:bg-black transition-colors inline-flex items-center">
                     Start Your RFQ <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  </button>
                 </div>
                 <div className="relative h-72 md:h-full min-h-[320px] overflow-hidden">
                   <ResponsiveImage src={IMG_CNC} alt="" className="absolute inset-0 w-full h-full object-cover" whileHover={{ scale: 1.05 }} transition={{ duration: 0.8 }} />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#0b0f18] via-[#0b0f18]/20 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#ff8a1e] via-[#ff8a1e]/10 to-transparent" />
                 </div>
               </div>
             </div>
@@ -665,27 +700,28 @@ function ProductionTracker({ stages, canEdit, onUpdate }) {
 // ============== PRODUCTS/PRODUCT DETAIL/OTHER PAGES ==============
 function ProductsPage({ setRoute, cms }) {
   return (
-    <div className="bg-[#05070c] min-h-screen">
+    <div className="bg-[#070605] min-h-screen">
       <div className="container mx-auto px-4 py-20">
         <FadeIn>
           <Eyebrow>Products</Eyebrow>
-          <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">Our Products</h1>
-          <p className="text-slate-400 mb-12 max-w-2xl text-lg font-light">Every gear we manufacture is built from your drawings and specifications.</p>
+          <h1 className="font-display text-5xl md:text-6xl font-bold text-[#f5f1ea] mb-4 tracking-tight">Our <span className="text-molten">Products</span></h1>
+          <p className="text-[#a39e93] mb-12 max-w-2xl text-lg font-light">Every gear we manufacture is built from your drawings and specifications.</p>
         </FadeIn>
         <motion.div initial="hidden" animate="visible" variants={stagger} className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {PRODUCTS.map(p => (
             <motion.div key={p.key} variants={fadeUp} whileHover={{ y: -8 }}>
-              <Card className="overflow-hidden group cursor-pointer bg-white/[0.03] border-white/10 hover:border-amber-500/60 backdrop-blur-sm hover:shadow-[0_0_50px_-12px_rgba(245,158,11,0.35)] transition-all duration-300 h-full" onClick={() => setRoute('product:' + p.key)}>
-                <div className="aspect-[4/3] overflow-hidden bg-slate-950 relative">
+              <SpotCard onClick={() => setRoute('product:' + p.key)}
+                className="overflow-hidden group cursor-pointer rounded-2xl bg-[#100d0a]/90 border border-white/10 hover:border-[#ff8a1e]/60 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_50px_-12px_rgba(255,106,0,0.35)] h-full">
+                <div className="aspect-[4/3] overflow-hidden bg-black relative">
                   <ResponsiveImage src={p.img} alt={p.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#05070c]/70 via-transparent to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#100d0a]/70 via-transparent to-transparent" />
                 </div>
-                <CardContent className="p-6">
-                  <h3 className="font-bold text-xl text-white mb-2 group-hover:text-amber-300 transition-colors">{p.title}</h3>
-                  <p className="text-sm text-slate-400 leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
-                  <div className="mt-4 text-amber-400 text-sm font-semibold flex items-center gap-1 group-hover:gap-2.5 transition-all">Learn more <ArrowRight className="h-4 w-4" /></div>
-                </CardContent>
-              </Card>
+                <div className="p-6">
+                  <h3 className="font-display font-bold text-xl text-[#f5f1ea] mb-2 group-hover:text-[#ffb52e] transition-colors">{p.title}</h3>
+                  <p className="text-sm text-[#a39e93] leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
+                  <div className="mt-4 text-[#ff8a1e] font-tech text-xs uppercase tracking-[0.2em] flex items-center gap-1.5 group-hover:gap-3 transition-all">Learn more <ArrowRight className="h-4 w-4" /></div>
+                </div>
+              </SpotCard>
             </motion.div>
           ))}
         </motion.div>
@@ -696,23 +732,23 @@ function ProductsPage({ setRoute, cms }) {
 
 function ProductDetail({ productKey, setRoute, cms }) {
   const p = PRODUCTS.find(x => x.key === productKey)
-  if (!p) return <div className="bg-[#05070c] min-h-screen"><div className="container mx-auto px-4 py-16 text-white">Product not found.</div></div>
+  if (!p) return <div className="bg-[#070605] min-h-screen"><div className="container mx-auto px-4 py-16 text-white">Product not found.</div></div>
   return (
-    <div className="bg-[#05070c]">
+    <div className="bg-[#070605]">
       <section className="relative text-white overflow-hidden">
         <Orbs />
         <div className="relative container mx-auto px-4 py-20 grid md:grid-cols-2 gap-12 items-center">
           <FadeIn>
-            <button onClick={() => setRoute('products')} className="text-slate-400 hover:text-amber-300 text-sm mb-6 flex items-center transition-colors"><ArrowLeft className="h-4 w-4 mr-1" /> All Products</button>
+            <button onClick={() => setRoute('products')} className="text-[#a39e93] hover:text-[#ffb52e] text-sm mb-6 flex items-center transition-colors"><ArrowLeft className="h-4 w-4 mr-1" /> All Products</button>
             <Eyebrow>Product</Eyebrow>
-            <h1 className="text-5xl md:text-6xl font-bold mb-5 tracking-tight">{p.title}</h1>
-            <p className="text-slate-400 mb-8 text-lg font-light leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
-            <Button size="lg" onClick={() => setRoute('rfq')} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold h-12 px-8 rounded-full shadow-[0_0_40px_-8px_rgba(245,158,11,0.8)]">Request a Quote <ArrowRight className="ml-2 h-4 w-4" /></Button>
+            <h1 className="font-display text-5xl md:text-6xl font-bold mb-5 tracking-tight text-[#f5f1ea]">{p.title}</h1>
+            <p className="text-[#a39e93] mb-8 text-lg font-light leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
+            <Button size="lg" onClick={() => setRoute('rfq')} className="btn-molten font-tech uppercase tracking-[0.18em] text-sm h-12 px-8 rounded-full">Request a Quote <ArrowRight className="ml-2 h-4 w-4" /></Button>
           </FadeIn>
           <FadeIn delay={0.2}>
-            <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_80px_-20px_rgba(245,158,11,0.4)]">
+            <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_80px_-20px_rgba(255,106,0,0.45)]">
               <ResponsiveImage src={p.img} alt={p.title} className="w-full aspect-[4/3] object-cover" whileHover={{ scale: 1.02 }} transition={{ duration: 0.4 }} />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#05070c]/50 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#070605]/50 to-transparent" />
             </div>
           </FadeIn>
         </div>
@@ -725,20 +761,20 @@ function ProductDetail({ productKey, setRoute, cms }) {
             { title: 'Manufacturing Options', items: ['Gear cutting & hobbing','Precision grinding','Heat treatment','CMM inspection','Lapping & finishing'] }
           ].map((col, i) => (
             <GlowCard key={i}>
-              <h3 className="font-bold text-white mb-4 text-lg">{col.title}</h3>
-              <ul className="space-y-2.5 text-slate-400 text-sm">{col.items.map(a => <li key={a} className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" /> {a}</li>)}</ul>
+              <h3 className="font-display font-bold text-[#f5f1ea] mb-4 text-lg">{col.title}</h3>
+              <ul className="space-y-2.5 text-[#a39e93] text-sm">{col.items.map(a => <li key={a} className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-[#ff8a1e] mt-0.5 shrink-0" /> {a}</li>)}</ul>
             </GlowCard>
           ))}
         </section>
       </FadeIn>
       <section className="container mx-auto px-4 pb-24">
         <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
-          <h3 className="font-bold text-white text-2xl tracking-tight">Gallery</h3>
-          <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full border-white/20 text-white bg-white/5 hover:bg-white hover:text-slate-900">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
+          <h3 className="font-display font-bold text-[#f5f1ea] text-2xl tracking-tight">Gallery</h3>
+          <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full border-white/25 text-white bg-white/5 hover:bg-white hover:text-black font-tech uppercase tracking-[0.18em] text-xs">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {GALLERY.slice(0, 4).map(photo => (
-            <button key={photo.src} onClick={() => setRoute('gallery')} className="rounded-xl overflow-hidden border border-white/10 bg-slate-900 hover:border-amber-500/50 transition-colors cursor-pointer">
+            <button key={photo.src} onClick={() => setRoute('gallery')} className="rounded-xl overflow-hidden border border-white/10 bg-black hover:border-[#ff8a1e]/60 transition-colors cursor-pointer">
               <ResponsiveImage src={photo.src} alt={photo.alt} className="aspect-square w-full h-full object-contain" whileHover={{ scale: 1.03 }} />
             </button>
           ))}
@@ -758,14 +794,14 @@ function CapabilitiesPage() {
     { title: 'Prototype to Production', desc: 'From one-off prototype gears to full production runs.', img: HERO_IMG },
   ]
   return (
-    <div className="bg-[#05070c]">
+    <div className="bg-[#070605]">
       <section className="relative text-white py-24 overflow-hidden">
         <Orbs />
         <GridBg />
         <div className="relative container mx-auto px-4"><FadeIn>
           <Eyebrow>Capabilities</Eyebrow>
-          <h1 className="text-5xl md:text-6xl font-bold mb-5 tracking-tight">Manufacturing <span className="bg-gradient-to-r from-amber-200 to-amber-500 bg-clip-text text-transparent">Capabilities</span></h1>
-          <p className="text-slate-400 max-w-2xl text-lg font-light">A complete in-house manufacturing suite from raw material through inspection.</p>
+          <h1 className="font-display text-5xl md:text-6xl font-bold mb-5 tracking-tight text-[#f5f1ea]">Manufacturing <span className="text-molten">Capabilities</span></h1>
+          <p className="text-[#a39e93] max-w-2xl text-lg font-light">A complete in-house manufacturing suite from raw material through inspection.</p>
         </FadeIn></div>
       </section>
       <section className="container mx-auto px-4 pb-24 space-y-16">
@@ -774,13 +810,13 @@ function CapabilitiesPage() {
             <div className={`grid md:grid-cols-2 gap-10 items-center ${i % 2 ? 'md:[&>div:first-child]:order-2' : ''}`}>
               <div className="relative rounded-2xl overflow-hidden border border-white/10 group">
                 <ResponsiveImage src={s.img} alt={s.title} className="w-full aspect-video object-cover" whileHover={{ scale: 1.04 }} transition={{ duration: 0.6 }} />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#05070c]/70 via-transparent to-transparent" />
-                <div className="absolute inset-0 rounded-2xl border border-amber-500/0 group-hover:border-amber-500/40 transition-colors duration-500" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#070605]/70 via-transparent to-transparent" />
+                <div className="absolute inset-0 rounded-2xl border border-[#ff8a1e]/0 group-hover:border-[#ff8a1e]/50 transition-colors duration-500" />
               </div>
               <div>
-                <div className="text-amber-500/80 text-xs font-bold uppercase tracking-[0.25em] mb-3">Capability {String(i + 1).padStart(2, '0')}</div>
-                <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">{s.title}</h2>
-                <p className="text-slate-400 text-lg leading-relaxed font-light">{s.desc}</p>
+                <div className="text-[#ff8a1e]/80 font-tech text-xs uppercase tracking-[0.25em] mb-3">Capability {String(i + 1).padStart(2, '0')}</div>
+                <h2 className="font-display text-3xl md:text-4xl font-bold text-[#f5f1ea] mb-4 tracking-tight">{s.title}</h2>
+                <p className="text-[#a39e93] text-lg leading-relaxed font-light">{s.desc}</p>
               </div>
             </div>
           </FadeIn>
@@ -805,25 +841,25 @@ function GalleryPage() {
   }, [lightbox])
   const active = lightbox === null ? null : GALLERY[lightbox]
   return (
-    <div className="bg-[#05070c] min-h-screen">
+    <div className="bg-[#070605] min-h-screen">
     <div className="container mx-auto px-4 py-20">
       <FadeIn>
         <Eyebrow>Gallery</Eyebrow>
-        <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">Inside our workshop</h1>
-        <p className="text-slate-400 mb-12 text-lg max-w-2xl font-light">Photos of our equipment, machining work, and gear components. Click any photo to enlarge it.</p>
+        <h1 className="font-display text-5xl font-bold text-[#f5f1ea] mb-4 tracking-tight">Inside our <span className="text-molten">workshop</span></h1>
+        <p className="text-[#a39e93] mb-12 text-lg max-w-2xl font-light">Photos of our equipment, machining work, and gear components. Click any photo to enlarge it.</p>
       </FadeIn>
       <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {GALLERY.map((photo, i) => (
-          <motion.figure key={photo.src} variants={fadeUp} whileHover={{ y: -3 }} onClick={() => setLightbox(i)} className="rounded-2xl overflow-hidden bg-white/[0.03] border border-white/10 backdrop-blur-sm cursor-pointer hover:border-amber-500/50 hover:shadow-[0_0_40px_-12px_rgba(245,158,11,0.4)] transition-all">
-            <div className="aspect-square bg-slate-900"><ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" /></div>
-            <figcaption className="px-3 py-2.5 text-sm font-medium text-slate-300">{photo.caption}</figcaption>
+          <motion.figure key={photo.src} variants={fadeUp} whileHover={{ y: -3 }} onClick={() => setLightbox(i)} className="rounded-2xl overflow-hidden bg-[#100d0a]/90 border border-white/10 backdrop-blur-sm cursor-pointer hover:border-[#ff8a1e]/60 hover:shadow-[0_0_40px_-12px_rgba(255,106,0,0.4)] transition-all">
+            <div className="aspect-square bg-black"><ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" /></div>
+            <figcaption className="px-3 py-2.5 text-sm font-medium text-[#a39e93]">{photo.caption}</figcaption>
           </motion.figure>
         ))}
       </motion.div>
       <AnimatePresence>
         {active && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setLightbox(null)}
-            className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4">
+            className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
             <button aria-label="Close" onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition">
               <X className="h-6 w-6" />
             </button>
@@ -849,22 +885,22 @@ function GalleryPage() {
 
 function AboutPage({ cms }) {
   return (
-    <div className="bg-[#05070c]">
+    <div className="bg-[#070605]">
       <section className="relative py-24 overflow-hidden">
         <Orbs />
         <div className="relative container mx-auto px-4 max-w-4xl">
           <FadeIn>
             <Eyebrow>About us</Eyebrow>
-            <h1 className="text-5xl md:text-6xl font-bold text-white mb-10 tracking-tight">{cms?.aboutTitle || 'About Vijaya Engineering Works'}</h1>
+            <h1 className="font-display text-5xl md:text-6xl font-bold text-[#f5f1ea] mb-10 tracking-tight">{cms?.aboutTitle || 'About Vijaya Engineering Works'}</h1>
           </FadeIn>
           <FadeIn delay={0.1}>
             <div className="relative rounded-2xl overflow-hidden border border-white/10 mb-10">
               <ResponsiveImage src={IMG_2} alt="Precision gears manufactured by Vijaya Engineering Works" className="w-full aspect-[21/9] object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#05070c]/80 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#070605]/80 via-transparent to-transparent" />
             </div>
           </FadeIn>
           <FadeIn delay={0.15}>
-            <p className="text-slate-300 text-lg leading-relaxed whitespace-pre-line font-light">{cms?.aboutText}</p>
+            <p className="text-[#d6d0c4] text-lg leading-relaxed whitespace-pre-line font-light">{cms?.aboutText}</p>
           </FadeIn>
           <FadeIn delay={0.2}>
             <div className="grid grid-cols-3 gap-4 mt-12">
@@ -874,8 +910,8 @@ function AboutPage({ cms }) {
                 { v: <Counter to={1200} suffix=" mm" />, l: 'Max OD' },
               ].map((s, i) => (
                 <GlowCard key={i} className="text-center p-5">
-                  <div className="text-2xl md:text-3xl font-bold text-white">{s.v}</div>
-                  <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mt-1">{s.l}</div>
+                  <div className="font-display text-2xl md:text-3xl font-bold text-molten">{s.v}</div>
+                  <div className="font-tech text-[11px] uppercase tracking-[0.18em] text-[#a39e93] mt-1">{s.l}</div>
                 </GlowCard>
               ))}
             </div>
@@ -895,39 +931,39 @@ function ContactPage({ cms }) {
     window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent('Website enquiry from ' + contact.name)}&body=${encodeURIComponent(contact.message + '\n\nFrom: ' + contact.name + '\nEmail: ' + contact.email)}`
   }
   const infoRows = [
-    { icon: Phone, label: 'Phone', body: cms?.phone ? <a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="text-white hover:text-amber-300 transition-colors">{cms.phone}</a> : 'Please use a quote request to contact us.' },
-    { icon: Mail, label: 'Email', body: contactEmail ? <a href={`mailto:${contactEmail}`} className="break-all text-white hover:text-amber-300 transition-colors">{contactEmail}</a> : 'Contact email is being updated.' },
-    { icon: MapPin, label: 'Address', body: <>{cms?.address}<div><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300">View our location on Google Maps</a></div></> },
-    { icon: Globe2, label: 'Website', body: <a href={COMPANY_URL} className="break-all text-white hover:text-amber-300 transition-colors">vijayaengineeringworks.com</a> },
+    { icon: Phone, label: 'Phone', body: cms?.phone ? <a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="text-white hover:text-[#ffb52e] transition-colors">{cms.phone}</a> : 'Please use a quote request to contact us.' },
+    { icon: Mail, label: 'Email', body: contactEmail ? <a href={`mailto:${contactEmail}`} className="break-all text-white hover:text-[#ffb52e] transition-colors">{contactEmail}</a> : 'Contact email is being updated.' },
+    { icon: MapPin, label: 'Address', body: <>{cms?.address}<div><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="text-[#ff8a1e] hover:text-[#ffb52e]">View our location on Google Maps</a></div></> },
+    { icon: Globe2, label: 'Website', body: <a href={COMPANY_URL} className="break-all text-white hover:text-[#ffb52e] transition-colors">vijayaengineeringworks.com</a> },
     { icon: Building2, label: 'Hours', body: cms?.hours },
   ]
   return (
-    <div className="bg-[#05070c] min-h-screen">
+    <div className="bg-[#070605] min-h-screen">
     <div className="container mx-auto px-4 py-20">
       <FadeIn>
         <Eyebrow>Contact</Eyebrow>
-        <h1 className="text-5xl font-bold text-white mb-4 tracking-tight">Contact Us</h1>
-        <p className="text-slate-400 mb-10 text-lg font-light max-w-2xl">Tell us about your project — we reply to every enquiry.</p>
+        <h1 className="font-display text-5xl font-bold text-[#f5f1ea] mb-4 tracking-tight">Contact <span className="text-molten">Us</span></h1>
+        <p className="text-[#a39e93] mb-10 text-lg font-light max-w-2xl">Tell us about your project — we reply to every enquiry.</p>
       </FadeIn>
       <div className="grid md:grid-cols-2 gap-8">
         <FadeIn><div className="space-y-3">
           {infoRows.map((r, i) => (
-            <div key={i} className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-5 hover:border-amber-500/40 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 border border-amber-500/30 flex items-center justify-center shrink-0">
-                <r.icon className="h-5 w-5 text-amber-400" />
+            <div key={i} className="flex items-start gap-4 rounded-2xl border border-white/10 bg-[#100d0a]/90 backdrop-blur-sm p-5 hover:border-[#ff8a1e]/50 transition-colors">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ff8a1e]/25 to-[#ff8a1e]/5 border border-[#ff8a1e]/40 flex items-center justify-center shrink-0">
+                <r.icon className="h-5 w-5 text-[#ffb52e]" />
               </div>
-              <div className="min-w-0"><div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-1">{r.label}</div><div className="text-slate-300">{r.body}</div></div>
+              <div className="min-w-0"><div className="font-tech text-[11px] uppercase tracking-[0.18em] text-[#a39e93] mb-1">{r.label}</div><div className="text-[#d6d0c4]">{r.body}</div></div>
             </div>
           ))}
         </div></FadeIn>
         <FadeIn delay={0.1}>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-6 md:p-8">
+          <div className="rounded-2xl border border-white/10 bg-[#100d0a]/90 backdrop-blur-sm p-6 md:p-8">
             <form onSubmit={composeContact} className="space-y-4">
-              <label className="block text-sm text-slate-300">Name<Input required placeholder="Your name" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} className="mt-1.5" /></label>
-              <label className="block text-sm text-slate-300">Email<Input required type="email" placeholder="you@example.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} className="mt-1.5" /></label>
-              <label className="block text-sm text-slate-300">Message<Textarea required placeholder="How can we help?" rows={4} value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} className="mt-1.5" /></label>
-              <Button disabled={!contactEmail} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-semibold w-full rounded-full shadow-[0_0_30px_-8px_rgba(245,158,11,0.7)]">Compose email</Button>
-              <p className="text-xs text-slate-500">Opens your email app so you can review and send your message.</p>
+              <label className="block text-sm text-[#d6d0c4]">Name<Input required placeholder="Your name" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} className="mt-1.5" /></label>
+              <label className="block text-sm text-[#d6d0c4]">Email<Input required type="email" placeholder="you@example.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} className="mt-1.5" /></label>
+              <label className="block text-sm text-[#d6d0c4]">Message<Textarea required placeholder="How can we help?" rows={4} value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} className="mt-1.5" /></label>
+              <Button disabled={!contactEmail} className="btn-molten font-tech uppercase tracking-[0.18em] text-sm w-full rounded-full h-12">Compose email</Button>
+              <p className="text-xs text-[#a39e93]">Opens your email app so you can review and send your message.</p>
             </form>
           </div>
         </FadeIn>

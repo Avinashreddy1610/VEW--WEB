@@ -1,9 +1,11 @@
-import { Inter } from 'next/font/google'
+import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { siteDescription } from '@/lib/site-content.mjs'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const display = Space_Grotesk({ subsets: ['latin'], variable: '--font-display', weight: ['500', '600', '700'] })
+const tech = JetBrains_Mono({ subsets: ['latin'], variable: '--font-tech', weight: ['500', '600'] })
 
 export const metadata = {
   title: 'Vijaya Engineering Works (VEW) — Custom Gear Manufacturing',
@@ -16,7 +18,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${display.variable} ${tech.variable}`}>
       <body className="font-sans antialiased bg-slate-50 text-slate-900">
         {children}
         <Toaster position="top-right" richColors />
