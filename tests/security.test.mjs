@@ -26,13 +26,14 @@ async function loadRoute() {
   source = source.replace("import { MongoClient } from 'mongodb'", `import { MongoClient as OriginalClient } from '${pathToFileURL(require.resolve('mongodb')).href}'; class MongoClient extends OriginalClient { constructor(...args) { super(...args); globalThis.__vewTestClients.push(this) } }`)
   source = source.replace("import { v4 as uuidv4 } from 'uuid'", "import { randomUUID as uuidv4 } from 'node:crypto'")
   source = source.replace("import { handleAuth } from '@/lib/server/auth.mjs'", 'const handleAuth = globalThis.__vewTestAuth')
+  source = source.replace("import { deliverRfqReceipt } from '@/lib/server/business-email.mjs'", 'const deliverRfqReceipt = async rfq => { if (globalThis.__vewReceiptFail) throw new Error("mock failure"); globalThis.__vewReceipts.push(rfq.customer.email); return "mock-email-id" }')
   source = source.replaceAll("'@/lib/server/", `'${new URL('lib/server/', root).href}`)
   return import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
 }
-async function call(path, method = 'GET', body, token) {
-  const request = new Request(`http://localhost/api/${path}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+async function call(path, method = 'GET', body, token, headers = {}) {
+  const request = new Request(`http://localhost/api/${path}`, { method, headers: { 'Content-Type': 'application/json', 'X-VEW-Request': '1', ...(token ? { Cookie: `vew-session=${token}` } : {}), ...headers }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
   const response = await route[method](request, { params: Promise.resolve({ path: path.split('/')[0].includes('?') ? [path.split('?')[0]] : path.split('?')[0].split('/') }) })
-  return { status: response.status, body: await response.json() }
+  return { status: response.status, body: await response.json(), cookies: response.headers.getSetCookie() }
 }
 async function user(id, role = 'customer', overrides = {}) {
   const u = { id, email: `${id}@example.com`, firstName: id, lastName: 'Test', phoneNorm: id, passwordHash: await hashPassword('TestPassword42!'), role, emailVerifiedAt: new Date().toISOString(), isActive: true, sessionVersion: 0, ...overrides }
@@ -41,6 +42,7 @@ async function user(id, role = 'customer', overrides = {}) {
 }
 
 before(async () => {
+  globalThis.__vewReceipts = []
   server = await MongoMemoryServer.create({ instance: { ip: '127.0.0.1' } })
   client = await new MongoClient(server.getUri()).connect()
   db = client.db(process.env.DB_NAME)
@@ -60,6 +62,51 @@ test('missing database configuration returns a safe 503; corrected config recove
   process.env.MONGO_URL = server.getUri()
   assert.equal((await call('health')).status, 200)
 })
+
+test('cookie login hides tokens, rejects legacy bearer and CSRF, and logout revokes replay', async () => {
+  const u = await user('cookie-session')
+  const login = await call('auth/login', 'POST', { identifier: u.email, password: 'TestPassword42!' })
+  assert.equal(login.body.token, undefined)
+  const cookie = login.cookies.find(c => c.startsWith('vew-session=')).split(';')[0]
+  assert.equal((await call('auth/me','GET',undefined,undefined,{ Cookie: cookie })).status,200)
+  assert.equal((await call('auth/me','GET',undefined,undefined,{ Authorization: `Bearer ${u.token}` })).status,401)
+  assert.equal((await call('auth/logout','POST',{},u.token,{ Origin:'https://evil.test' })).status,403)
+  assert.equal((await call('auth/logout','POST',{},u.token,{ 'X-VEW-Request':'' })).status,403)
+  const logout=await call('auth/logout','POST',{},undefined,{Cookie:cookie})
+  assert.equal(logout.status,200)
+  assert.ok(logout.cookies.every(c=>c.includes('Max-Age=0')))
+  assert.equal((await call('auth/me','GET',undefined,undefined,{Cookie:cookie})).status,401)
+})
+
+test('concurrent identical RFQ and upload retries save exactly once and reject changed payloads', async () => {
+  const u=await user('idempotent-rfq')
+  const key={'Idempotency-Key':'test-concurrent-rfq-0001'}
+  const body={gearType:'Spur Gear',general:{quantity:3},customer:{email:u.email},files:[]}
+  const before=globalThis.__vewReceipts.length
+  const responses=await Promise.all(Array.from({length:8},()=>call('rfq','POST',body,u.token,key)))
+  assert.ok(responses.every(r=>r.status===200))
+  assert.equal(new Set(responses.map(r=>r.body.rfq.id)).size,1)
+  assert.equal(await db.collection('rfqs').countDocuments({userId:u.id}),1)
+  assert.equal(globalThis.__vewReceipts.length-before,1)
+  assert.equal((await call('rfq','POST',{...body,general:{quantity:4}},u.token,key)).status,409)
+  const files={files:[{name:'drawing.pdf',dataUrl:'data:application/pdf;base64,JVBERi0='}]}
+  const uploaded=await Promise.all([call('upload','POST',files,u.token,key),call('upload','POST',files,u.token,key)])
+  assert.equal(uploaded[0].body.files[0].id,uploaded[1].body.files[0].id)
+  assert.equal(await db.collection('files').countDocuments({userId:u.id}),1)
+  assert.equal((await call('upload','POST',{files:[{name:'fake.pdf',dataUrl:'data:application/pdf;base64,PGh0bWw+'}]},u.token)).status,400)
+})
+
+test('paged RFQs preserve customer isolation and literal search; invalid limits are rejected', async () => {
+  const u=await user('paged-customer')
+  await db.collection('rfqs').insertMany(Array.from({length:3},(_,i)=>({id:`paging-${i}`,userId:u.id,rfqNumber:`literal[${i}]`,customer:{email:u.email},createdAt:new Date().toISOString(),productionStages:[]})))
+  const first=await call('rfq?limit=2&page=1','GET',undefined,u.token)
+  const second=await call('rfq?limit=2&page=2','GET',undefined,u.token)
+  assert.equal(first.body.rfqs.length,2);assert.equal(first.body.pagination.hasMore,true)
+  assert.equal(second.body.rfqs.length,1);assert.equal(second.body.pagination.hasMore,false)
+  assert.equal(new Set([...first.body.rfqs,...second.body.rfqs].map(r=>r.id)).size,3)
+  assert.equal((await call('rfq?limit=100000','GET',undefined,u.token)).status,400)
+  assert.equal((await call('rfq?q=%5B1%5D','GET',undefined,u.token)).body.rfqs.length,1)
+})
 test('signup validates inputs and blocks login until an email token is consumed once', async () => {
   assert.equal((await call('auth/signup', 'POST', { email: { $ne: null } })).status, 400)
   const signup = await call('auth/signup', 'POST', { email: 'NEW@example.com', firstName: 'New', lastName: 'Person', phone: '+15550001234', password: 'StrongPass123!' })
@@ -74,7 +121,8 @@ test('signup validates inputs and blocks login until an email token is consumed 
   assert.deepEqual(results.map(r=>r.status).sort(), [200,400])
   const login = await call('auth/login','POST',{identifier:'new@example.com', password:'StrongPass123!'})
   assert.equal(login.status,200)
-  assert.ok(login.body.token)
+  assert.equal(login.body.token, undefined)
+  assert.ok(login.cookies.some(c => c.startsWith('vew-session=') && c.includes('HttpOnly')))
   assert.equal(login.body.user.passwordHash, undefined)
   assert.equal(login.body.user.emailVerificationTokenHash, undefined)
 })
@@ -140,6 +188,8 @@ test('RFQ isolation, file ownership, message authorship, pricing and archive per
   const result = await call('rfq','POST',payload,customer.token)
   assert.equal(result.status,200,JSON.stringify(result.body))
   const rfq = result.body.rfq
+  assert.equal(result.body.receiptEmailStatus, 'accepted')
+  assert.ok(globalThis.__vewReceipts.includes(customer.email))
   assert.equal((await call('rfq?email='+customer.email)).status,401)
   assert.equal((await call(`rfq/${rfq.id}`)).status,401)
   assert.equal((await call(`rfq/${rfq.id}`,'GET',undefined,other.token)).status,404)
@@ -174,13 +224,42 @@ test('failed verification delivery is retryable and does not grant a session', a
   assert.equal((await call('auth/signup','POST',data)).status,200)
   assert.ok(messages.some(m=>m.email===data.email&&m.kind==='verify'))
 })
+test('RFQ survives a receipt email failure without asking the customer to resubmit', async () => {
+  globalThis.__vewReceiptFail = true
+  try {
+    const token=signToken({userId:'staff',sessionVersion:0})
+    const r=await call('rfq','POST',{gearType:'Spur Gear',general:{quantity:'1'},customer:{email:'receipt@example.com'},files:[]},token)
+    assert.equal(r.status,200)
+    assert.equal(r.body.success,true)
+    assert.equal(r.body.receiptEmailStatus,'failed')
+    assert.ok(await db.collection('rfqs').findOne({id:r.body.rfq.id}))
+  } finally { globalThis.__vewReceiptFail=false }
+})
 test('rate limits persist in database and malformed JSON returns 400', async () => {
   for (let i=0;i<12;i++) await call('auth/login','POST',{identifier:'rate@example.com',password:'wrong'})
   assert.equal((await call('auth/login','POST',{identifier:'rate@example.com',password:'wrong'})).status,429)
-  const r = await route.POST(new Request('http://localhost/api/auth/signup',{method:'POST',body:'{'}),{params:Promise.resolve({path:['auth','signup']})})
+  const r = await route.POST(new Request('http://localhost/api/auth/signup',{method:'POST',headers:{'X-VEW-Request':'1'},body:'{'}),{params:Promise.resolve({path:['auth','signup']})})
   assert.equal(r.status,400)
 })
 test('email delivery fails closed when provider or trusted site URL is absent', () => {
   delete process.env.APP_URL; delete process.env.RESEND_API_KEY; delete process.env.EMAIL_FROM
   assert.throws(()=>emailSettings(), {code:'EMAIL_CONFIGURATION'})
+})
+test('company/order routes use the real API authentication and cannot bypass customer isolation', async () => {
+  const staff=signToken({userId:'staff',sessionVersion:0})
+  const customer=signToken({userId:'rfqcustomer',sessionVersion:0})
+  assert.equal((await call('orders')).status,401)
+  assert.equal((await call('admin/companies/unknown/members','GET',undefined,customer)).status,403)
+  assert.equal((await call('admin/companies','POST',{name:'Bulk route test'},staff)).status,200)
+  const company=(await call('companies','GET',undefined,staff)).body.companies.find(c=>c.name==='Bulk route test')
+  const created=await call('orders','POST',{companyId:company.id,items:[{name:'Test gear',quantity:12}],internalNotes:'PRIVATE'},staff)
+  assert.equal(created.status,200,JSON.stringify(created.body))
+  assert.deepEqual((await call('orders','GET',undefined,customer)).body.orders,[])
+  await db.collection('companyMembers').insertOne({id:'route-membership',userId:'rfqcustomer',companyId:company.id,status:'active'})
+  const shared=(await call('orders','GET',undefined,customer)).body.orders
+  assert.equal(shared[0].id,created.body.order.id)
+  assert.equal(shared[0].internalNotes,undefined)
+  assert.equal((await call(`orders/${created.body.order.id}`,'DELETE',undefined,customer)).status,403)
+  assert.equal((await call(`admin/companies/${company.id}/members/route-membership`,'DELETE',undefined,staff)).status,200)
+  assert.deepEqual((await call('orders','GET',undefined,customer)).body.orders,[])
 })

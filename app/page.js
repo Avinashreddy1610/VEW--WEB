@@ -1,6 +1,10 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
+import { motion, MotionConfig, AnimatePresence, useScroll, useTransform } from 'framer-motion'
+import ResponsiveImage from '@/components/responsive-image'
+import { apiFetch as fetch } from '@/lib/client-http.mjs'
+import { cleanContact, pageTitles } from '@/lib/site-content.mjs'
+import { ListPager, usePagedList } from '@/components/paged-list'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,16 +14,17 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { ManagerManagement, CompanyManagement } from '@/components/management-panels'
+import { CompanyOrders, CompanyInvitation } from '@/components/company-orders'
 const isStaff = user => ['owner', 'manager'].includes(user?.role)
 import {
   Cog, Wrench, Factory, Ruler, ShieldCheck, Upload, FileText, Trash2, ArrowRight, ArrowLeft,
-  CheckCircle2, Menu, X, Mail, Phone, MapPin, ClipboardList, LayoutDashboard, Search,
+  CheckCircle2, Menu, X, Mail, Phone, MapPin, Globe2, ClipboardList, Search,
   Package, TrendingUp, Send, Download, RefreshCw, Building2, LogIn, LogOut, User, UserPlus,
-  Circle, Loader2, Pencil, Save, FileDown, Sparkles, Boxes, ChevronRight,
-  Hammer, Flame, Layers, Wind, Truck, Award, Zap
+  Circle, Loader2, Pencil, Save, FileDown, Sparkles, Boxes,
+  Hammer, Flame, Layers, Wind, Truck, Award
 } from 'lucide-react'
 
 // ============== IMAGES ==============
@@ -29,12 +34,26 @@ const IMG_3 = 'https://images.unsplash.com/photo-1567093322102-6bdd32fba67d?crop
 const IMG_4 = 'https://images.unsplash.com/photo-1565954786194-d22abeaac3ae?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwyfHxnZWFyJTIwbWFudWZhY3R1cmluZ3xlbnwwfHx8YmxhY2t8MTc4ODQ4ODgxMnww&ixlib=rb-4.1.0&q=85'
 const IMG_CNC = 'https://images.unsplash.com/photo-1652888510609-ed2d2ad64d6b?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwzfHxDTkMlMjBtYWNoaW5lfGVufDB8fHxibGFja3wxNzg4NDg4ODE3fDA&ixlib=rb-4.1.0&q=85'
 const IMG_CNC2 = 'https://images.unsplash.com/photo-1548683726-203119be6a39?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwyfHxDTkMlMjBtYWNoaW5lfGVufDB8fHxibGFja3wxNzg4NDg4ODE3fDA&ixlib=rb-4.1.0&q=85'
-const GAL_1 = 'https://images.unsplash.com/photo-1606337321936-02d1b1a4d5ef?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000'
-const GAL_2 = 'https://images.unsplash.com/photo-1705490899854-2e4b15a0c811?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000'
-const GAL_3 = 'https://images.unsplash.com/photo-1585366958403-bacb4c36a1a9?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000'
-const GAL_4 = 'https://images.unsplash.com/photo-1585366958113-e28e8e580d3a?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000'
-const GAL_5 = 'https://images.pexels.com/photos/7568421/pexels-photo-7568421.jpeg?auto=compress&cs=tinysrgb&w=1000'
-const GALLERY = [GAL_1, GAL_2, GAL_3, GAL_4, GAL_5, IMG_2, IMG_3, IMG_4]
+const GALLERY = [
+  { src: '/workshop/finished-gear-components.jpg', alt: 'Finished gear components at Vijaya Engineering Works', caption: 'Finished gears' },
+  { src: '/workshop/workshop-machinery.jpg', alt: 'Machine tools on the Vijaya Engineering Works production floor', caption: 'Workshop machinery' },
+  { src: '/workshop/machining-setup.jpg', alt: 'Metalworking machine set up in the workshop', caption: 'Machining setup' },
+  { src: '/workshop/industrial-equipment.jpg', alt: 'Industrial equipment inside the Vijaya Engineering Works workshop', caption: 'Workshop equipment' },
+  { src: '/workshop/lathe-setup.jpg', alt: 'Lathe and cutting equipment in the workshop', caption: 'Lathe setup' },
+  { src: '/workshop/production-floor.jpg', alt: 'Machine tools on the production floor', caption: 'Production floor' },
+  { src: '/workshop/vertical-machining-setup.jpg', alt: 'Vertical machining equipment in the workshop', caption: 'Machining equipment' },
+  { src: '/workshop/gear-machining.jpg', alt: 'Technician machining a gear component', caption: 'Machining in progress' },
+  { src: '/workshop/lathe-workstation.jpg', alt: 'Lathe workstation with a mounted component', caption: 'Lathe workstation' },
+  { src: '/workshop/bevel-gear.jpg', alt: 'Finished bevel gear component', caption: 'Bevel gear' },
+  { src: '/workshop/vertical-machine.jpg', alt: 'Vertical metalworking machine in the workshop', caption: 'Vertical machine' },
+  { src: '/workshop/heavy-machining.jpg', alt: 'Heavy green machining equipment in the workshop', caption: 'Heavy machining' },
+  { src: '/workshop/machining-closeup.jpg', alt: 'Close view of a metalworking setup', caption: 'Machining close-up' },
+  { src: '/workshop/gear-cutting-machine.jpg', alt: 'Gear mounted on a cutting machine', caption: 'Gear cutting' },
+  { src: '/workshop/machining-equipment-angle.jpg', alt: 'Another view of heavy machining equipment', caption: 'Machining equipment' },
+]
+
+const COMPANY_URL = 'https://www.vijayaengineeringworks.com'
+const COMPANY_MAPS_URL = 'https://www.google.com/maps/place/VIJAYA+ENGINEERING+WORKS/@17.5126854,78.4642879,759m/data=!3m2!1e3!4b1!4m6!3m5!1s0x3bcb91f4238e884b:0x2e79917f150aa34d!8m2!3d17.5126854!4d78.4642879!16s%2Fg%2F11pf2lzzm4'
 
 // ============== CONSTANTS ==============
 const GEAR_TYPES = ['Spiral Bevel Gear','Spiral Bevel Pinion','Spiral Bevel Gear Set','Straight Bevel Gear','Helical Gear','Spur Gear','Other Custom Gear']
@@ -120,22 +139,21 @@ function specGroup(t) { if (!t) return 'custom'; if (t.includes('Bevel')) return
 // ============== AUTH HOOK ==============
 function useAuth() {
   const [user, setUser] = useState(null)
-  const [token, setToken] = useState(null)
+  const [sessionKey, setSessionKey] = useState(null)
   const [loading, setLoading] = useState(true)
   useEffect(() => {
-    const t = typeof window !== 'undefined' ? localStorage.getItem('vew_token') : null
-    if (!t) { setLoading(false); return }
-    setToken(t)
-    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${t}` } })
-      .then(r => r.json()).then(d => { if (d.user) setUser(d.user); else { localStorage.removeItem('vew_token'); setToken(null) } })
-      .catch(() => { setToken(null); setUser(null) })
+    // Retire legacy browser-readable credentials. The server owns the session cookie.
+    try { localStorage.removeItem('vew_token'); localStorage.removeItem('vew_admin_token') } catch { /* Storage may be disabled; cookie sign-in still works. */ }
+    fetch('/api/auth/me')
+      .then(r => r.json()).then(d => { if (d.user) { setUser(d.user); setSessionKey(d.user.id) } else setSessionKey(null) })
+      .catch(() => { setSessionKey(null); setUser(null) })
       .finally(() => setLoading(false))
   }, [])
   const login = async (identifier, password) => {
     const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, password }) })
     const d = await r.json()
     if (!r.ok) { const error = new Error(d.error); error.code = d.code; throw error }
-    localStorage.setItem('vew_token', d.token); setToken(d.token); setUser(d.user); return d.user
+    setSessionKey(d.user.id); setUser(d.user); return d.user
   }
   const signup = async (data) => {
     const r = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
@@ -144,39 +162,37 @@ function useAuth() {
     return d
   }
   const impersonate = async (userId) => {
-    const r = await fetch(`/api/admin/users/${userId}/impersonate`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } })
+    const r = await fetch(`/api/admin/users/${userId}/impersonate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     const d = await r.json()
     if (!r.ok) throw new Error(d.error)
-    // Stash original admin token for restore
-    localStorage.setItem('vew_admin_token', token)
-    localStorage.setItem('vew_token', d.token); setToken(d.token); setUser({ ...d.user, _impersonatedBy: 'admin' }); return d.user
+    setSessionKey(d.user.id); setUser(d.user); return d.user
   }
-  const exitImpersonation = () => {
-    const adminToken = localStorage.getItem('vew_admin_token')
-    if (!adminToken) return
-    localStorage.setItem('vew_token', adminToken)
-    localStorage.removeItem('vew_admin_token')
-    setToken(adminToken)
-    // Re-fetch admin user
-    fetch('/api/auth/me', { headers: { Authorization: `Bearer ${adminToken}` } }).then(r => r.json()).then(d => { if (!d.user) { logout(); toast.error('Please sign in again'); return } setUser(d.user) }).catch(() => { logout(); toast.error('Please sign in again') })
+  const exitImpersonation = async () => {
+    const r = await fetch('/api/auth/exit-impersonation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    const d = await r.json()
+    if (!r.ok) throw new Error(d.error || 'Please sign in again')
+    setSessionKey(d.user.id); setUser(d.user)
   }
-  const logout = () => { localStorage.removeItem('vew_token'); localStorage.removeItem('vew_admin_token'); setToken(null); setUser(null) }
-  return { user, token, loading, login, signup, logout, impersonate, exitImpersonation }
+  const logout = async () => {
+    const r = await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    if (!r.ok) throw new Error('Sign-out failed. Please try again.')
+    setSessionKey(null); setUser(null)
+  }
+  return { user, sessionKey, loading, login, signup, logout, impersonate, exitImpersonation }
 }
 
-function api(token) {
+function api() {
   const h = { 'Content-Type': 'application/json' }
-  if (token) h.Authorization = `Bearer ${token}`
-  const request = async (u, method, body) => {
+  const request = async (u, method, body, requestKey) => {
     try {
-      const response = await fetch(u, { method, headers: h, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+      const response = await fetch(u, { method, headers: { ...h, ...(requestKey ? { 'Idempotency-Key': requestKey } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
       const data = await response.json()
       if (!response.ok) { toast.error(data.error || 'Request failed'); return { error: data.error || 'Request failed', success: false } }
       return data
     } catch { toast.error('Unable to reach the server. Please try again.'); return { error: 'Connection failed', success: false } }
   }
   return {
-    get: u => request(u, 'GET'), post: (u, body) => request(u, 'POST', body),
+    get: u => request(u, 'GET'), post: (u, body, requestKey) => request(u, 'POST', body, requestKey),
     patch: (u, body) => request(u, 'PATCH', body), delete: u => request(u, 'DELETE'),
     put: (u, body) => request(u, 'PUT', body),
   }
@@ -228,18 +244,18 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
               <Button variant="ghost" size="sm" onClick={() => setRoute(isStaff(user) ? 'admin' : 'portal')} className="text-slate-300 hover:text-white hover:bg-slate-800 hidden sm:inline-flex">
                 <User className="h-4 w-4 mr-1" /> {user.firstName || user.fullName || 'Account'}
               </Button>
-              <Button variant="ghost" size="sm" onClick={onLogout} className="text-slate-400 hover:text-white hover:bg-slate-800"><LogOut className="h-4 w-4" /></Button>
+              <Button aria-label="Sign out" variant="ghost" size="sm" onClick={onLogout} className="text-slate-400 hover:text-white hover:bg-slate-800"><LogOut className="h-4 w-4" /></Button>
             </>
           ) : (
             <Button variant="ghost" size="sm" onClick={() => setRoute('login')} className="text-slate-300 hover:text-white hover:bg-slate-800 hidden sm:inline-flex"><LogIn className="h-4 w-4 mr-1" /> Sign In</Button>
           )}
           <Button onClick={() => setRoute('rfq')} className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold hidden sm:inline-flex">Request a Quote</Button>
-          <button className="lg:hidden text-white p-2" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
+          <button aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} aria-controls="mobile-menu" className="lg:hidden text-white p-2" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
         </div>
       </div>
       <AnimatePresence>
         {mobileOpen && (
-          <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="lg:hidden border-t border-slate-800 bg-slate-900 overflow-hidden">
+          <motion.div id="mobile-menu" initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="lg:hidden border-t border-slate-800 bg-slate-900 overflow-hidden">
             <div className="container mx-auto px-4 py-3 flex flex-col gap-1">
               {links.map(l => <button key={l.key} onClick={() => { setRoute(l.key); setMobileOpen(false) }} className={`px-3 py-2 text-left rounded-md ${route === l.key ? 'text-amber-400 bg-slate-800' : 'text-slate-300'}`}>{l.label}</button>)}
               {user ? <>
@@ -279,9 +295,12 @@ function Footer({ setRoute, cms }) {
         <div>
           <div className="text-white font-semibold mb-3">Contact</div>
           <ul className="space-y-2 text-sm">
-            <li className="flex items-center gap-2"><Phone className="h-4 w-4" /> {cms?.phone || '+91 98765 43210'}</li>
-            <li className="flex items-center gap-2"><Mail className="h-4 w-4" /> {cms?.email || 'sales@vew.com'}</li>
-            <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5" /> {cms?.address || '15 Industrial Estate, Bangalore'}</li>
+            {cms?.phone && <li className="flex items-center gap-2"><Phone className="h-4 w-4 shrink-0" /><a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:text-amber-400">{cms.phone}</a></li>}
+            {cms?.email && <li className="flex items-center gap-2"><Mail className="h-4 w-4 shrink-0" /><a href={`mailto:${cms.email}`} className="break-all hover:text-amber-400">{cms.email}</a></li>}
+            {cms?.address && <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 shrink-0" />{cms.address}</li>}
+            <li className="flex items-start gap-2"><Globe2 className="h-4 w-4 mt-0.5 shrink-0" /><a href={COMPANY_URL} className="break-all hover:text-amber-400">vijayaengineeringworks.com</a></li>
+            <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 shrink-0" /><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="hover:text-amber-400">Find us on Google Maps</a></li>
+            {!cms?.email && !cms?.phone && <li><button onClick={() => setRoute('rfq')} className="underline">Contact us through a quote request</button></li>}
           </ul>
         </div>
       </div>
@@ -303,7 +322,7 @@ function HomePage({ setRoute, cms }) {
       {/* HERO */}
       <section ref={heroRef} className="relative bg-slate-950 text-white overflow-hidden min-h-[92vh] flex items-center">
         <motion.div style={{ y: heroY, scale: heroScale }} className="absolute inset-0">
-          <img src={HERO_IMG} alt="" className="w-full h-full object-cover opacity-30" />
+          <ResponsiveImage src={HERO_IMG} alt="" priority sizes="100vw" className="w-full h-full object-cover opacity-30" />
           <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-950/90 to-slate-900/40" />
         </motion.div>
         <motion.div aria-hidden style={{ y: heroY }} className="pointer-events-none absolute inset-0 flex items-center justify-end pr-4 md:pr-16 overflow-hidden">
@@ -391,7 +410,7 @@ function HomePage({ setRoute, cms }) {
               <motion.div key={p.key} variants={fadeUp} whileHover={{ y: -8 }} transition={{ duration: 0.3 }}>
                 <Card className="overflow-hidden group cursor-pointer bg-slate-900 border-slate-800 hover:border-amber-500 transition h-full" onClick={() => setRoute('product:' + p.key)}>
                   <div className="aspect-[4/3] overflow-hidden bg-slate-950">
-                    <motion.img src={p.img} alt={p.title} className="w-full h-full object-cover opacity-80" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} />
+                    <ResponsiveImage src={p.img} alt={p.title} className="w-full h-full object-cover opacity-80" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} />
                   </div>
                   <CardContent className="p-5">
                     <h3 className="font-bold text-lg text-white mb-1">{p.title}</h3>
@@ -432,15 +451,15 @@ function HomePage({ setRoute, cms }) {
             <div className="flex items-end justify-between flex-wrap gap-4 mb-10">
               <div>
                 <div className="text-amber-600 font-semibold text-sm uppercase tracking-widest mb-3">Gallery</div>
-                <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">Precision, up close</h2>
+                <h2 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">Inside our workshop</h2>
               </div>
               <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
             </div>
           </FadeIn>
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger} className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {GALLERY.slice(0, 8).map((img, i) => (
-              <motion.div key={i} variants={fadeUp} whileHover={{ scale: 1.03 }} className="aspect-square rounded-xl overflow-hidden bg-slate-900">
-                <img src={img} alt="" className="w-full h-full object-cover" />
+            {GALLERY.slice(0, 8).map((photo) => (
+              <motion.div key={photo.src} variants={fadeUp} whileHover={{ scale: 1.03 }} className="aspect-square rounded-xl overflow-hidden bg-slate-900">
+                <ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" />
               </motion.div>
             ))}
           </motion.div>
@@ -459,7 +478,7 @@ function HomePage({ setRoute, cms }) {
               </Button>
             </div>
             <div className="h-72 md:h-full overflow-hidden">
-              <motion.img src={IMG_CNC} alt="" className="w-full h-full object-cover" whileHover={{ scale: 1.05 }} transition={{ duration: 0.8 }} />
+              <ResponsiveImage src={IMG_CNC} alt="" className="w-full h-full object-cover" whileHover={{ scale: 1.05 }} transition={{ duration: 0.8 }} />
             </div>
           </div>
         </FadeIn>
@@ -472,7 +491,7 @@ function HomePage({ setRoute, cms }) {
 function ProductionTracker({ stages, canEdit, onUpdate }) {
   const stagesData = stages || PRODUCTION_STAGES.map((s, i) => ({ id: 's' + i, name: s.name, sequence: i + 1, status: 'NOT_STARTED' }))
   return (
-    <div className="w-full overflow-x-auto pb-2">
+    <div className="w-full min-w-0 max-w-full overflow-x-auto pb-2" tabIndex={0} role="region" aria-label="Production stages; scroll horizontally to see all stages">
       <div className="min-w-[900px]">
         {/* Progress line */}
         <div className="relative flex items-start justify-between">
@@ -535,7 +554,7 @@ function ProductsPage({ setRoute, cms }) {
         {PRODUCTS.map(p => (
           <motion.div key={p.key} variants={fadeUp} whileHover={{ y: -8 }}>
             <Card className="overflow-hidden group cursor-pointer border-slate-200 hover:border-amber-500 hover:shadow-xl transition h-full" onClick={() => setRoute('product:' + p.key)}>
-              <div className="aspect-[4/3] overflow-hidden bg-slate-900"><motion.img src={p.img} alt={p.title} className="w-full h-full object-cover opacity-90" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} /></div>
+              <div className="aspect-[4/3] overflow-hidden bg-slate-900"><ResponsiveImage src={p.img} alt={p.title} className="w-full h-full object-cover opacity-90" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} /></div>
               <CardContent className="p-5"><h3 className="font-bold text-lg text-slate-900 mb-1">{p.title}</h3><p className="text-sm text-slate-600">{cms?.productDescriptions?.[p.key]}</p></CardContent>
             </Card>
           </motion.div>
@@ -558,7 +577,7 @@ function ProductDetail({ productKey, setRoute, cms }) {
             <p className="text-slate-300 mb-8 text-lg font-light">{cms?.productDescriptions?.[p.key]}</p>
             <Button size="lg" onClick={() => setRoute('rfq')} className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold h-12 px-6 rounded-full">Request a Quote <ArrowRight className="ml-2 h-4 w-4" /></Button>
           </FadeIn>
-          <FadeIn delay={0.2}><motion.img src={p.img} alt={p.title} className="rounded-2xl shadow-2xl" whileHover={{ scale: 1.02 }} transition={{ duration: 0.4 }} /></FadeIn>
+          <FadeIn delay={0.2}><ResponsiveImage src={p.img} alt={p.title} className="rounded-2xl shadow-2xl" whileHover={{ scale: 1.02 }} transition={{ duration: 0.4 }} /></FadeIn>
         </div>
       </section>
       <FadeIn>
@@ -578,7 +597,7 @@ function ProductDetail({ productKey, setRoute, cms }) {
       <section className="container mx-auto px-4 pb-20">
         <h3 className="font-bold text-slate-900 mb-6 text-2xl">Gallery</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {GALLERY.slice(0, 4).map((g, i) => <motion.img key={i} src={g} className="aspect-square object-cover rounded-xl" whileHover={{ scale: 1.03 }} />)}
+          {GALLERY.slice(0, 4).map(photo => <ResponsiveImage key={photo.src} src={photo.src} alt={photo.alt} className="aspect-square object-contain bg-slate-900 rounded-xl" whileHover={{ scale: 1.03 }} />)}
         </div>
       </section>
     </div>
@@ -606,7 +625,7 @@ function CapabilitiesPage() {
         {sections.map((s, i) => (
           <FadeIn key={i}>
             <div className={`grid md:grid-cols-2 gap-12 items-center ${i % 2 ? 'md:[&>div:first-child]:order-2' : ''}`}>
-              <motion.img src={s.img} alt={s.title} className="rounded-2xl w-full aspect-video object-cover" whileHover={{ scale: 1.02 }} />
+              <ResponsiveImage src={s.img} alt={s.title} className="rounded-2xl w-full aspect-video object-cover" whileHover={{ scale: 1.02 }} />
               <div><h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4 tracking-tight">{s.title}</h2><p className="text-slate-700 text-lg leading-relaxed">{s.desc}</p></div>
             </div>
           </FadeIn>
@@ -620,12 +639,13 @@ function GalleryPage() {
   return (
     <div className="container mx-auto px-4 py-20">
       <FadeIn><h1 className="text-5xl font-bold text-slate-900 mb-3 tracking-tight">Gallery</h1>
-      <p className="text-slate-600 mb-12 text-lg max-w-2xl">Precision engineered gears and finished components from our production floor.</p></FadeIn>
+      <p className="text-slate-600 mb-12 text-lg max-w-2xl">Photos of our equipment, machining work, and gear components.</p></FadeIn>
       <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {GALLERY.concat([HERO_IMG, IMG_CNC, IMG_CNC2]).map((g, i) => (
-          <motion.div key={i} variants={fadeUp} whileHover={{ scale: 1.03 }} className="aspect-square rounded-2xl overflow-hidden bg-slate-900 shadow-lg">
-            <img src={g} className="w-full h-full object-cover" />
-          </motion.div>
+        {GALLERY.map(photo => (
+          <motion.figure key={photo.src} variants={fadeUp} whileHover={{ y: -3 }} className="rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm">
+            <div className="aspect-square bg-slate-900"><ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" /></div>
+            <figcaption className="px-3 py-2 text-sm font-medium text-slate-700">{photo.caption}</figcaption>
+          </motion.figure>
         ))}
       </motion.div>
     </div>
@@ -656,9 +676,10 @@ function ContactPage({ cms }) {
       <FadeIn><h1 className="text-5xl font-bold text-slate-900 mb-10 tracking-tight">Contact Us</h1></FadeIn>
       <div className="grid md:grid-cols-2 gap-12">
         <FadeIn><div className="space-y-5 text-slate-700">
-          <div className="flex items-start gap-3"><Phone className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Phone</div>{cms?.phone}</div></div>
-          <div className="flex items-start gap-3"><Mail className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Email</div>{cms?.email}</div></div>
-          <div className="flex items-start gap-3"><MapPin className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Address</div>{cms?.address}</div></div>
+          <div className="flex items-start gap-3"><Phone className="h-5 w-5 text-amber-500 mt-1 shrink-0" /><div><div className="font-semibold text-slate-900">Phone</div>{cms?.phone ? <a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="underline">{cms.phone}</a> : 'Please use a quote request to contact us.'}</div></div>
+          <div className="flex items-start gap-3"><Mail className="h-5 w-5 text-amber-500 mt-1 shrink-0" /><div className="min-w-0"><div className="font-semibold text-slate-900">Email</div>{contactEmail ? <a href={`mailto:${contactEmail}`} className="underline break-all">{contactEmail}</a> : 'Contact email is being updated.'}</div></div>
+          <div className="flex items-start gap-3"><MapPin className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Address</div>{cms?.address}<div><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="underline text-amber-700">View our location on Google Maps</a></div></div></div>
+          <div className="flex items-start gap-3"><Globe2 className="h-5 w-5 text-amber-500 mt-1 shrink-0" /><div className="min-w-0"><div className="font-semibold text-slate-900">Website</div><a href={COMPANY_URL} className="underline break-all">vijayaengineeringworks.com</a></div></div>
           <div className="flex items-start gap-3"><Building2 className="h-5 w-5 text-amber-500 mt-1" /><div><div className="font-semibold text-slate-900">Hours</div>{cms?.hours}</div></div>
         </div></FadeIn>
         <FadeIn delay={0.1}><Card><CardContent className="p-6"><form onSubmit={composeContact} className="space-y-3">
@@ -691,7 +712,7 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
     try {
       const r = await fetch('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token }) })
       const d = await r.json()
-      if (!r.ok) throw new Error(d.error)
+      if (!r.ok) { setActionError(d.error || 'Email verification failed'); return }
       setActionMessage(d.message)
     } catch (e) { setActionError(e.message) } finally { setLoading(false) }
   }
@@ -702,7 +723,7 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
     setLoading(true)
     try {
       const r = await fetch('/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
-      const d = await r.json(); if (!r.ok) throw new Error(d.error)
+      const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to resend verification'); return }
       setMode('verification-sent'); setActionMessage(d.message)
     } catch (e) { toast.error(e.message) } finally { setLoading(false) }
   }
@@ -717,7 +738,8 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
           setWelcome({ name: u.firstName || 'there', isNew: false, role: u.role })
         } catch (error) {
           if (error.code === 'EMAIL_NOT_VERIFIED') { setForm({ ...form, email: form.identifier.includes('@') ? form.identifier : '' }); setMode('unverified'); return }
-          throw error
+          toast.error(error.message)
+          return
         }
       } else if (mode === 'signup') {
         if (!form.email || !form.phone) { toast.error('Email and phone are both required'); setLoading(false); return }
@@ -725,13 +747,13 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
         setActionMessage(d.message); setMode('verification-sent')
       } else if (mode === 'forgot') {
         const r = await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: form.identifier }) })
-        const d = await r.json(); if (!r.ok) throw new Error(d.error)
+        const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to request password reset'); return }
         setActionMessage(d.message); setMode('reset-sent')
       } else if (mode === 'reset') {
-        if (form.password !== form.confirmPassword) throw new Error('Passwords do not match')
+        if (form.password !== form.confirmPassword) { toast.error('Passwords do not match'); return }
         const r = await fetch('/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token, password: form.password }) })
-        const d = await r.json(); if (!r.ok) throw new Error(d.error)
-        auth.logout(); toast.success(d.message); clearAuthAction?.(); setForm({ ...form, password: '', confirmPassword: '' }); setMode('login')
+        const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to reset password'); return }
+        await auth.logout(); toast.success(d.message); clearAuthAction?.(); setForm({ ...form, password: '', confirmPassword: '' }); setMode('login')
       }
     } catch (e) { toast.error(e.message) } finally { setLoading(false) }
   }
@@ -794,7 +816,7 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
               {(mode === 'login' || mode === 'forgot') && (
                 <div><Label className="text-slate-700">{mode === 'forgot' ? 'Email address' : 'Email or Phone'}</Label>
                   <div className="relative mt-1"><User className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
-                    <Input required type={mode === 'forgot' ? 'email' : 'text'} className="pl-9 h-11" placeholder={mode === 'forgot' ? 'you@company.com' : 'you@company.com or +91 98765 43210'} value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
+                    <Input aria-label={mode === 'forgot' ? 'Email address' : 'Email or phone'} autoComplete="username" required type={mode === 'forgot' ? 'email' : 'text'} className="pl-9 h-11" placeholder={mode === 'forgot' ? 'you@company.com' : 'Email address or phone number'} value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
                   </div>
                 </div>
               )}
@@ -804,10 +826,10 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
                     <Label className="text-slate-700">Password{mode === 'signup' && ' *'}</Label>
                     {mode === 'login' && <button type="button" onClick={() => setMode('forgot')} className="text-xs text-amber-600 font-medium hover:underline">Forgot password?</button>}
                   </div>
-                  <Input required minLength={mode === 'login' ? undefined : 8} maxLength={128} type="password" className="mt-1 h-11" placeholder={mode === 'signup' || mode === 'reset' ? 'At least 8 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+                  <Input aria-label="Password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? undefined : 8} maxLength={128} type="password" className="mt-1 h-11" placeholder={mode === 'signup' || mode === 'reset' ? 'At least 8 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
                 </div>
               )}
-              {mode === 'reset' && <div><Label className="text-slate-700">Confirm new password</Label><Input required minLength={8} type="password" className="mt-1 h-11" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} /></div>}
+              {mode === 'reset' && <div><Label className="text-slate-700">Confirm new password</Label><Input aria-label="Confirm new password" autoComplete="new-password" required minLength={8} type="password" className="mt-1 h-11" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} /></div>}
               <Button disabled={loading} type="submit" className="w-full bg-slate-900 hover:bg-slate-800 h-11 rounded-full font-semibold">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : mode === 'reset' ? 'Update Password' : 'Send Reset Instructions'}
               </Button>
@@ -847,11 +869,11 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
             <DialogTitle className="text-center text-2xl">
               {welcome?.isNew ? `Welcome to VEW, ${welcome?.name}!` : `Welcome back, ${welcome?.name}!`}
             </DialogTitle>
-            <CardDescription className="text-center pt-2">
+            <DialogDescription className="text-center pt-2">
               {welcome?.isNew
                 ? "Your account is ready. You can now submit RFQs and track every stage of production live."
                 : isStaff(welcome) ? 'Signed in as administrator.' : "You're signed in. Continue to your portal to see all your RFQs and orders."}
-            </CardDescription>
+            </DialogDescription>
           </DialogHeader>
           <Button onClick={continueAfterWelcome} className="w-full bg-slate-900 hover:bg-slate-800 rounded-full h-11 mt-2">
             {isStaff(welcome) ? 'Go to Admin Dashboard' : 'Continue to My Portal'} <ArrowRight className="h-4 w-4 ml-1" />
@@ -875,35 +897,34 @@ function ImpersonationBanner({ user, onExit }) {
 
 // ============== USER MANAGEMENT (Admin) ==============
 function UserManagement({ auth, onImpersonate }) {
-  const [users, setUsers] = useState([])
   const [query, setQuery] = useState('')
+  const userList = usePagedList(`/api/admin/users?q=${encodeURIComponent(query)}`, 'users', auth.user?.id)
+  const users = userList.items, load = userList.refresh
   const [resetTarget, setResetTarget] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
   const [newPw, setNewPw] = useState('')
-  const load = async () => { const d = await api(auth.token).get(`/api/admin/users?q=${encodeURIComponent(query)}`); if (d.users) setUsers(d.users) }
-  useEffect(() => { load() }, [query])
 
   async function toggle(u) {
     if (isStaff(u)) { toast.error("Can't disable admin"); return }
-    const result = await api(auth.token).patch(`/api/admin/users/${u.id}/toggle`, {}); if (result.error) return
+    const result = await api().patch(`/api/admin/users/${u.id}/toggle`, {}); if (result.error) return
     toast.success(u.isActive ? 'User disabled' : 'User re-enabled')
     load()
   }
   async function doReset() {
     if (!newPw || newPw.length < 8) { toast.error('At least 8 characters'); return }
-    const r = await api(auth.token).post(`/api/admin/users/${resetTarget.id}/reset-password`, { password: newPw })
+    const r = await api().post(`/api/admin/users/${resetTarget.id}/reset-password`, { password: newPw })
     if (r.success) { toast.success('Password reset'); setResetTarget(null); setNewPw('') }
     else toast.error(r.error)
   }
   async function saveCustomer(e) {
     e.preventDefault()
-    const result = await api(auth.token).patch(`/api/admin/users/${editTarget.id}`, editTarget)
+    const result = await api().patch(`/api/admin/users/${editTarget.id}`, editTarget)
     if (result.error) return
     toast.success('Customer updated'); setEditTarget(null); load()
   }
   async function deleteCustomer(u) {
     if (!window.confirm(`Delete the customer account for ${u.email}? Sign-in will be disabled and RFQ history retained.`)) return
-    const result = await api(auth.token).delete(`/api/admin/users/${u.id}`)
+    const result = await api().delete(`/api/admin/users/${u.id}`)
     if (!result.error) { toast.success('Customer account removed'); load() }
   }
   async function impersonate(u) {
@@ -920,7 +941,7 @@ function UserManagement({ auth, onImpersonate }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <div className="font-semibold text-slate-900 text-lg">User Management</div>
-          <div className="text-sm text-slate-500">All customer & admin accounts · {users.length} total</div>
+          <div className="text-sm text-slate-500">Customer & admin accounts · {users.length} on this page</div>
         </div>
         <div className="relative w-full sm:w-80"><Search className="h-4 w-4 absolute left-3 top-3 text-slate-400" />
           <Input className="pl-9" placeholder="Search by name, email, phone, company..." value={query} onChange={e => setQuery(e.target.value)} />
@@ -979,14 +1000,15 @@ function UserManagement({ auth, onImpersonate }) {
                 </td>
               </tr>
             ))}
-            {!users.length && <tr><td colSpan="7" className="p-10 text-center text-slate-500">No users found.</td></tr>}
+            {!users.length && !userList.loading && !userList.error && <tr><td colSpan="7" className="p-10 text-center text-slate-500">No users found.</td></tr>}
           </tbody>
         </table>
       </CardContent></Card>
+      <ListPager list={userList} label="Users" />
       <Dialog open={!!editTarget} onOpenChange={o => !o && setEditTarget(null)}><DialogContent><DialogHeader><DialogTitle>Edit customer details</DialogTitle></DialogHeader>{editTarget && <form onSubmit={saveCustomer} className="space-y-3">{[['firstName','First name'],['lastName','Last name'],['companyName','Company'],['phone','Phone']].map(([key,label]) => <label key={key} className="block text-sm">{label}<Input value={editTarget[key] || ''} onChange={e => setEditTarget({ ...editTarget, [key]: e.target.value })} /></label>)}<p className="text-sm text-slate-500">Email and staff access cannot be changed here.</p><Button type="submit">Save customer</Button></form>}</DialogContent></Dialog>
       <Dialog open={!!resetTarget} onOpenChange={o => !o && setResetTarget(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Reset password for {resetTarget?.firstName} {resetTarget?.lastName}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Reset password for {resetTarget?.firstName} {resetTarget?.lastName}</DialogTitle><DialogDescription>Set a temporary customer password and share it securely.</DialogDescription></DialogHeader>
           <div className="space-y-3 py-3">
             <div className="text-sm text-slate-600">Set a temporary password and share it securely with the customer.</div>
             <Label>New Password</Label>
@@ -1012,6 +1034,8 @@ function RfqWizard({ setRoute, prefill, auth }) {
   const [customer, setCustomer] = useState(prefill?.customer || (auth.user ? { companyName: auth.user.companyName, firstName: auth.user.firstName, lastName: auth.user.lastName, email: auth.user.email, phone: auth.user.phone } : {}))
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const submitInFlight = useRef(false)
+  const submission = useRef(null)
   const [submitted, setSubmitted] = useState(null)
   const specFields = SPEC_FIELDS[specGroup(gearType)]
 
@@ -1030,16 +1054,20 @@ function RfqWizard({ setRoute, prefill, auth }) {
     e.target.value = ''
   }
   async function submit() {
+    if (submitInFlight.current) return
+    submitInFlight.current = true
+    const fingerprint = JSON.stringify({ gearType, specs, general, files, customer, notes })
+    if (submission.current?.fingerprint !== fingerprint) submission.current = { fingerprint, key: crypto.randomUUID() }
     setSubmitting(true)
     try {
       let savedFiles = []
       if (files.length) {
-        const r = await api(auth.token).post('/api/upload', { files }); if (r.error) throw new Error(r.error)
+        const r = await api().post('/api/upload', { files }, submission.current.key); if (r.error) { toast.error(r.error); return }
         savedFiles = r.files || []
       }
-      const r = await api(auth.token).post('/api/rfq', { gearType, specifications: specs, general, files: savedFiles, customer: { ...customer, email: (customer.email || '').toLowerCase() }, notes })
+      const r = await api().post('/api/rfq', { gearType, specifications: specs, general, files: savedFiles, customer: { ...customer, email: (customer.email || '').toLowerCase() }, notes }, submission.current.key)
       if (r.success) { setSubmitted(r.rfq); toast.success(`RFQ ${r.rfq.rfqNumber} submitted`) } else toast.error(r.error || 'Failed')
-    } catch (e) { toast.error(e.message) } finally { setSubmitting(false) }
+    } catch (e) { toast.error(e.message) } finally { submitInFlight.current = false; setSubmitting(false) }
   }
   const canNext = () => step === 1 ? !!gearType : step === 3 ? Number.isFinite(Number(general.quantity)) && Number(general.quantity) > 0 : step === 5 ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email || '') && customer.firstName && customer.lastName : true
 
@@ -1049,7 +1077,8 @@ function RfqWizard({ setRoute, prefill, auth }) {
       <h1 className="text-4xl font-bold text-slate-900 mb-3 tracking-tight">Thank you.</h1>
       <p className="text-slate-600 mb-2">Your RFQ number:</p>
       <div className="text-3xl font-bold tracking-wider text-amber-600 mb-6">{submitted.rfqNumber}</div>
-      <p className="text-slate-600 mb-8">Our engineering team will review your request shortly. Track its progress in your portal.</p>
+      <p className="text-slate-600 mb-4">Our engineering team will review your request and reach out to <strong>{submitted.customer.email}</strong> with the next steps. Track its progress in your portal.</p>
+      <p role="status" className="text-sm text-slate-600 mb-8">{submitted.receiptEmailStatus==='accepted'?'Your confirmation email has been submitted for delivery. Check your inbox and spam folder.':'Your request is safely saved, but the confirmation email could not be sent. There is no need to submit your request again.'}</p>
       <div className="flex gap-3 justify-center flex-wrap">
         <Button onClick={() => setRoute('portal')} className="bg-slate-900 hover:bg-slate-800 rounded-full">View in Portal</Button>
         <Button variant="outline" onClick={() => setRoute('home')} className="rounded-full">Back to Home</Button>
@@ -1206,12 +1235,9 @@ async function generateQuotePDF(rfq, cms) {
 
 // ============== CUSTOMER PORTAL ==============
 function CustomerPortal({ auth, setRoute }) {
-  const [rfqs, setRfqs] = useState([])
-  const [loading, setLoading] = useState(false)
+  const rfqList = usePagedList('/api/rfq', 'rfqs', auth.user?.id, true)
+  const rfqs = rfqList.items, load = rfqList.refresh, loading = rfqList.loading, loadError = rfqList.error
   const [selected, setSelected] = useState(null)
-  const load = async () => { setLoading(true); const d = await api(auth.token).get('/api/rfq'); if (d.rfqs) setRfqs(d.rfqs); setLoading(false) }
-  useEffect(() => { load() }, [])
-  useEffect(() => { const i = setInterval(load, 8000); return () => clearInterval(i) }, [])
 
   return (
     <div className="container mx-auto px-4 py-10">
@@ -1222,7 +1248,11 @@ function CustomerPortal({ auth, setRoute }) {
           <Button onClick={() => setRoute('rfq')} className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-full">New RFQ</Button>
         </div>
       </div>
-      {loading && !rfqs.length ? <div>Loading...</div> : rfqs.length === 0 ? (
+      <CompanyOrders auth={auth} />
+      <h2 className="text-2xl font-bold mb-4">Your individual RFQs</h2>
+      <ListPager list={rfqList} label="Your RFQs" />
+      {loadError && <p role="alert" className="mb-4 text-red-700">{loadError}. Use Refresh to try again.</p>}
+      {loading && !rfqs.length ? <div role="status">Loading...</div> : rfqs.length === 0 && !loadError ? (
         <Card><CardContent className="p-16 text-center text-slate-500">No RFQs yet. <button onClick={() => setRoute('rfq')} className="text-amber-600 font-semibold">Submit your first RFQ</button></CardContent></Card>
       ) : (
         <motion.div initial="hidden" animate="visible" variants={stagger} className="grid gap-3">
@@ -1249,13 +1279,13 @@ function CustomerPortal({ auth, setRoute }) {
           ))}
         </motion.div>
       )}
-      <RfqDetailDialog rfq={selected} onClose={() => setSelected(null)} onUpdated={load} auth={auth} asCustomer />
+      <RfqDetailDialog rfq={selected} onClose={() => setSelected(null)} onUpdated={load} auth={auth} />
     </div>
   )
 }
 
 // ============== RFQ DETAIL DIALOG ==============
-function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, cms }) {
+function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asAdmin, cms }) {
   const [current, setCurrent] = useState(rfq)
   const [msgText, setMsgText] = useState('')
   const [newStatus, setNewStatus] = useState(rfq?.status || '')
@@ -1272,12 +1302,12 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
   if (!current) return null
 
   async function refresh() {
-    const d = await api(auth.token).get(`/api/rfq/${current.id}`); if (d.error) return
+    const d = await api().get(`/api/rfq/${current.id}`); if (d.error) return
     if (d.rfq) setCurrent(d.rfq); onUpdated && onUpdated()
   }
   async function sendMessage() {
     if (!msgText.trim()) return
-    const result = await api(auth.token).post(`/api/rfq/${current.id}/messages`, { text: msgText }); if (result.error) return
+    const result = await api().post(`/api/rfq/${current.id}/messages`, { text: msgText }); if (result.error) return
     setMsgText(''); refresh()
   }
   function calcTotal(p) {
@@ -1285,17 +1315,17 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
   }
   async function saveAdmin() {
     const total = calcTotal(pricing)
-    const result = await api(auth.token).patch(`/api/rfq/${current.id}`, { status: newStatus, internalNotes, pricing: { ...pricing, total }, leadTime }); if (result.error) return
+    const result = await api().patch(`/api/rfq/${current.id}`, { status: newStatus, internalNotes, pricing: { ...pricing, total }, leadTime }); if (result.error) return
     toast.success('RFQ updated')
     refresh()
   }
   async function updateStage(stageId, status) {
-    const result = await api(auth.token).patch(`/api/rfq/${current.id}/stage`, { stageId, status }); if (result.error) return
+    const result = await api().patch(`/api/rfq/${current.id}/stage`, { stageId, status }); if (result.error) return
     toast.success('Stage updated')
     refresh()
   }
   async function downloadFile(f) {
-    const d = await api(auth.token).get(`/api/files/${f.id}`)
+    const d = await api().get(`/api/files/${f.id}`)
     if (d.error) return
     const a = document.createElement('a'); a.href = d.dataUrl; a.download = d.name; a.click()
   }
@@ -1309,6 +1339,7 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
             <Badge className={STATUS_COLORS[current.status]}>{current.status}</Badge>
             <span className="text-sm font-normal text-slate-500">· {current.gearType}</span>
           </DialogTitle>
+          <DialogDescription>Review request details, drawings, messages and production progress.</DialogDescription>
         </DialogHeader>
 
         {/* PRODUCTION TRACKER */}
@@ -1321,7 +1352,7 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
         </div>
 
         <Tabs defaultValue="details">
-          <TabsList>
+          <TabsList className="flex h-auto flex-wrap">
             <TabsTrigger value="details">Details</TabsTrigger>
             <TabsTrigger value="messages">Messages ({current.messages?.length || 0})</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
@@ -1411,7 +1442,7 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asCustomer, asAdmin, c
         </Tabs>
         <DialogFooter>{asAdmin && <Button variant="destructive" onClick={async () => {
           if (!window.confirm(`Delete ${current.rfqNumber}? It will be removed from active lists; its history will be retained.`)) return
-          const result = await api(auth.token).delete(`/api/rfq/${current.id}`)
+          const result = await api().delete(`/api/rfq/${current.id}`)
           if (!result.error) { toast.success('RFQ removed'); onClose(); onUpdated?.() }
         }}>Delete RFQ</Button>}<Button variant="outline" onClick={onClose} className="rounded-full">Close</Button></DialogFooter>
       </DialogContent>
@@ -1428,17 +1459,17 @@ function StageManager({ rfqId, stages, auth, onChange }) {
 
   async function addStage() {
     if (!newName.trim()) return
-    const r = await api(auth.token).post(`/api/rfq/${rfqId}/stages`, { name: newName.trim() })
+    const r = await api().post(`/api/rfq/${rfqId}/stages`, { name: newName.trim() })
     if (r.success) { toast.success(`Added "${newName}"`); setNewName(''); onChange() }
     else toast.error(r.error)
   }
   async function renameStage(sid, name) {
-    const r = await api(auth.token).patch(`/api/rfq/${rfqId}/stages/${sid}`, { name })
+    const r = await api().patch(`/api/rfq/${rfqId}/stages/${sid}`, { name })
     if (r.success) { toast.success('Renamed'); onChange() }
   }
   async function deleteStage(sid) {
     if (!confirm('Delete this stage?')) return
-    const r = await api(auth.token).delete(`/api/rfq/${rfqId}/stages/${sid}`)
+    const r = await api().delete(`/api/rfq/${rfqId}/stages/${sid}`)
     if (r.success) { toast.success('Stage removed'); onChange() }
   }
   async function move(i, dir) {
@@ -1447,7 +1478,7 @@ function StageManager({ rfqId, stages, auth, onChange }) {
     const order = [...list]
     ;[order[i], order[j]] = [order[j], order[i]]
     setList(order.map((s, k) => ({ ...s, sequence: k + 1 })))
-    const r = await api(auth.token).put(`/api/rfq/${rfqId}/stages/reorder`, { order: order.map(s => s.id) })
+    const r = await api().put(`/api/rfq/${rfqId}/stages/reorder`, { order: order.map(s => s.id) })
     if (r.error) setList(stages)
     if (r.success) onChange()
   }
@@ -1458,7 +1489,7 @@ function StageManager({ rfqId, stages, auth, onChange }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Manage Production Stages</DialogTitle>
-            <CardDescription>Add, rename, reorder, or remove stages for this specific RFQ.</CardDescription>
+            <DialogDescription>Add, rename, reorder, or remove stages for this specific RFQ.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {list.map((s, i) => (
@@ -1487,18 +1518,18 @@ function StageManager({ rfqId, stages, auth, onChange }) {
 
 // ============== ADMIN DASHBOARD ==============
 function AdminDashboard({ auth, cms, reloadCms }) {
-  const [rfqs, setRfqs] = useState([])
   const [stats, setStats] = useState(null)
   const [selected, setSelected] = useState(null)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('all')
+  const rfqList = usePagedList(`/api/rfq?q=${encodeURIComponent(query)}&filter=${filter}`, 'rfqs', auth.user?.id, true)
+  const rfqs = rfqList.items
   const [tab, setTab] = useState('rfqs')
-  const load = async () => {
-    const d = await api(auth.token).get('/api/rfq'); setRfqs(d.rfqs || [])
-    const s = await api(auth.token).get('/api/admin/stats'); if (!s.error) setStats(s)
+  const loadStats = async () => {
+    const s = await api().get('/api/admin/stats'); if (!s.error) setStats(s)
   }
-  useEffect(() => { load() }, [])
-  useEffect(() => { const i = setInterval(load, 8000); return () => clearInterval(i) }, [])
+  const load = () => Promise.all([rfqList.refresh(), loadStats()])
+  useEffect(() => { loadStats(); const i = setInterval(() => { if (document.visibilityState === 'visible') loadStats() }, 30000); return () => clearInterval(i) }, [])
 
   const filtered = rfqs.filter(r => {
     if (query && !JSON.stringify(r).toLowerCase().includes(query.toLowerCase())) return false
@@ -1519,8 +1550,9 @@ function AdminDashboard({ auth, cms, reloadCms }) {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="mb-6">
-        <TabsList className="flex h-auto flex-wrap"><TabsTrigger value="rfqs">RFQs</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="companies">Companies</TabsTrigger><TabsTrigger value="cms">Content Editor</TabsTrigger>{auth.user?.role === 'owner' && <TabsTrigger value="managers">Managers</TabsTrigger>}</TabsList>
+        <TabsList className="flex h-auto flex-wrap"><TabsTrigger value="rfqs">RFQs</TabsTrigger><TabsTrigger value="orders">Bulk Orders</TabsTrigger><TabsTrigger value="users">Users</TabsTrigger><TabsTrigger value="companies">Companies</TabsTrigger><TabsTrigger value="cms">Content Editor</TabsTrigger>{auth.user?.role === 'owner' && <TabsTrigger value="managers">Managers</TabsTrigger>}</TabsList>
         <TabsContent value="rfqs">
+          <ListPager list={rfqList} label="RFQs" />
           {stats && <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {[
               ['This Month', stats.thisMonth, TrendingUp], ['Total RFQs', stats.total, ClipboardList],
@@ -1570,6 +1602,7 @@ function AdminDashboard({ auth, cms, reloadCms }) {
             {!filtered.length && <Card><CardContent className="p-12 text-center text-slate-500">No RFQs match.</CardContent></Card>}
           </motion.div>
         </TabsContent>
+        <TabsContent value="orders"><CompanyOrders auth={auth} staff /></TabsContent>
         <TabsContent value="companies"><CompanyManagement auth={auth} /></TabsContent>
         {auth.user?.role === 'owner' && <TabsContent value="managers"><ManagerManagement auth={auth} /></TabsContent>}
         <TabsContent value="cms"><CmsEditor auth={auth} cms={cms} reloadCms={reloadCms} /></TabsContent>
@@ -1588,7 +1621,7 @@ function CmsEditor({ auth, cms, reloadCms }) {
   const [saving, setSaving] = useState(false)
   async function save() {
     setSaving(true)
-    const result = await api(auth.token).patch('/api/cms', form)
+    const result = await api().patch('/api/cms', form)
     setSaving(false)
     if (result.error) return
     toast.success('Content updated')
@@ -1634,20 +1667,22 @@ function App() {
   const [route, setRoute] = useState('home')
   const [authAction, setAuthAction] = useState(null)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [reorderPrefill, setReorderPrefill] = useState(null)
   const [cms, setCms] = useState(null)
+  const [cmsError, setCmsError] = useState('')
   const [signoutOpen, setSignoutOpen] = useState(false)
 
-  const loadCms = async () => { const d = await api().get('/api/cms'); if (d.cms) setCms(d.cms) }
+  const loadCms = async () => { const d = await api().get('/api/cms'); if (d.cms) { setCms(cleanContact(d.cms)); setCmsError('') } else setCmsError(d.error || 'Unable to load business information') }
   useEffect(() => { loadCms() }, [])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search)
     const verifyToken = params.get('verify')
     const resetToken = params.get('reset')
-    if (verifyToken || resetToken) window.history.replaceState({}, '', window.location.pathname)
+    const inviteToken = params.get('invite')
+    if (verifyToken || resetToken || inviteToken) window.history.replaceState({}, '', window.location.pathname)
     if (verifyToken) { setAuthAction({ type: 'verify', token: verifyToken }); setRoute('login') }
     else if (resetToken) { setAuthAction({ type: 'reset', token: resetToken }); setRoute('login') }
+    else if (inviteToken) { setAuthAction({ type: 'invite', token: inviteToken }); setRoute('invite') }
   }, [])
 
   const clearAuthAction = () => {
@@ -1655,7 +1690,17 @@ function App() {
     window.history.replaceState({}, '', window.location.pathname)
   }
 
-  useEffect(() => { window.scrollTo(0, 0) }, [route])
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    setMobileOpen(false)
+    const title = route.startsWith('product:') ? PRODUCTS.find(p => p.key === route.slice(8))?.title : pageTitles[route]
+    document.title = `${title || 'Page not found'} | Vijaya Engineering Works`
+  }, [route])
+  useEffect(() => {
+    const close = event => { if (event.key === 'Escape') setMobileOpen(false) }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [])
 
   useEffect(() => {
     const h = () => setRoute('portal')
@@ -1663,9 +1708,9 @@ function App() {
     return () => window.removeEventListener('exitAdmin', h)
   }, [])
 
-  function confirmSignout() {
+  async function confirmSignout() {
     const name = auth.user?.firstName || 'user'
-    auth.logout()
+    try { await auth.logout() } catch (error) { toast.error(error.message); return }
     setSignoutOpen(false)
     setRoute('home')
     toast.success(`You've been signed out, ${name}. See you soon!`, { duration: 4000 })
@@ -1678,10 +1723,11 @@ function App() {
     setRoute(r)
   }
 
-  if (auth.loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /></div>
+  if (auth.loading) return <div role="status" className="min-h-screen flex items-center justify-center gap-3"><Loader2 className="h-8 w-8 animate-spin text-amber-500" />Loading your account…</div>
 
   let content
   if (route === 'admin' && !isStaff(auth.user)) content = <LoginPage setRoute={goRoute} auth={auth} />
+  else if (route === 'invite' && authAction?.type === 'invite') content = <CompanyInvitation token={authAction.token} auth={auth} onDone={() => { clearAuthAction(); setRoute('portal') }} onSignIn={() => { clearAuthAction(); setRoute('login') }} />
   else if (route === 'home') content = <HomePage setRoute={goRoute} cms={cms} />
   else if (route === 'products') content = <ProductsPage setRoute={goRoute} cms={cms} />
   else if (route.startsWith('product:')) content = <ProductDetail productKey={route.slice(8)} setRoute={goRoute} cms={cms} />
@@ -1689,17 +1735,19 @@ function App() {
   else if (route === 'gallery') content = <GalleryPage />
   else if (route === 'about') content = <AboutPage cms={cms} />
   else if (route === 'contact') content = <ContactPage cms={cms} />
-  else if (route === 'rfq') content = <RfqWizard setRoute={goRoute} prefill={reorderPrefill} auth={auth} />
+  else if (route === 'rfq') content = <RfqWizard setRoute={goRoute} auth={auth} />
   else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} authAction={authAction} clearAuthAction={clearAuthAction} />
   else if (route === 'portal') content = <CustomerPortal auth={auth} setRoute={goRoute} />
   else if (route === 'admin') content = <AdminDashboard auth={auth} cms={cms} reloadCms={loadCms} />
   else content = <HomePage setRoute={goRoute} cms={cms} />
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <MotionConfig reducedMotion="user"><div className="min-h-screen flex flex-col">
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:p-3">Skip to content</a>
       <Nav route={route.split(':')[0]} setRoute={goRoute} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={auth.user} onLogout={() => setSignoutOpen(true)} />
-      <ImpersonationBanner user={auth.user} onExit={() => { auth.exitImpersonation(); setRoute('admin'); toast.success('Exited override — back to admin') }} />
-      <main className="flex-1">{content}</main>
+      <ImpersonationBanner user={auth.user} onExit={async () => { try { await auth.exitImpersonation(); setRoute('admin'); toast.success('Exited override — back to admin') } catch (error) { toast.error(error.message) } }} />
+      <main id="main-content" className="flex-1 min-w-0" tabIndex={-1}>{content}</main>
+      {cmsError && <div role="alert" className="mx-auto max-w-xl px-4 py-4 text-sm text-red-700">Some business details could not be loaded. <button className="underline" onClick={loadCms}>Try again</button></div>}
       <Footer setRoute={goRoute} cms={cms} />
 
       <Dialog open={signoutOpen} onOpenChange={setSignoutOpen}>
@@ -1707,9 +1755,9 @@ function App() {
           <DialogHeader>
             <div className="mx-auto mb-2"><div className="inline-flex bg-slate-100 rounded-full p-3"><LogOut className="h-8 w-8 text-slate-700" /></div></div>
             <DialogTitle className="text-center">Sign out of your account?</DialogTitle>
-            <CardDescription className="text-center pt-2">
+            <DialogDescription className="text-center pt-2">
               You'll need to sign in again to view your RFQs and production tracking.
-            </CardDescription>
+            </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 mt-3">
             <Button variant="outline" onClick={() => setSignoutOpen(false)} className="flex-1 rounded-full">Stay signed in</Button>
@@ -1717,7 +1765,7 @@ function App() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </div></MotionConfig>
   )
 }
 

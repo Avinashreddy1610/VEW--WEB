@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
 import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
-import { HttpError, text, email, password, hashPassword, verifyPassword, signToken, getAuthUser, isStaff, isOwner, safeUser, safeRfq, canReadRfq, rateLimit, ownerEmail } from '@/lib/server/security.mjs'
+import { HttpError, text, email, password, hashPassword, signToken, getAuthUser, isStaff, isOwner, safeUser, safeRfq, canReadRfq, rateLimit, ownerEmail } from '@/lib/server/security.mjs'
 import { handleAuth } from '@/lib/server/auth.mjs'
 import { handleManagement } from '@/lib/server/management.mjs'
+import { handleCompanyOrders } from '@/lib/server/company-orders.mjs'
+import { deliverRfqReceipt } from '@/lib/server/business-email.mjs'
+import { isSameOriginMutation, readCookie, setSession, sessionName, ownerSessionName } from '@/lib/server/session.mjs'
+import { boundedBody, insertOnce, validateUpload } from '@/lib/server/request-safety.mjs'
+import { pageQuery, literalSearch } from '@/lib/server/pagination.mjs'
 
 let connection
 async function getDb() {
@@ -13,7 +18,7 @@ async function getDb() {
       if (typeof uri !== 'string' || !/^mongodb(\+srv)?:\/\//.test(uri)) {
         throw new HttpError(503, 'The database connection is not configured. Please contact the site owner.', 'DATABASE_CONFIGURATION')
       }
-      const client = new MongoClient(uri, { maxPoolSize: 10, serverSelectionTimeoutMS: 8000 })
+      const client = new MongoClient(uri, { maxPoolSize: 10, serverSelectionTimeoutMS: 8000, socketTimeoutMS: 15000, waitQueueTimeoutMS: 8000 })
       try {
         await client.connect()
         const db = client.db(process.env.DB_NAME || 'vew_gears')
@@ -64,10 +69,18 @@ function mockSendEmail() { return { mocked: true } }
 function normalizePhone(p) {
   return text(p, 40).replace(/\D/g, '')
 }
-function isEmail(s) { return /@/.test(s || '') }
-function isPhone(s) { return /^\+?[\d\s\-()]+$/.test((s || '').trim()) && normalizePhone(s).length >= 6 }
 
 async function ensureSeed(db) {
+  for (const name of ['users','rfqs','files','companies','orders']) await db.collection(name).createIndex({ id: 1 })
+  await db.collection('users').createIndex({ phoneNorm: 1 })
+  await db.collection('rfqs').createIndex({ userId: 1, deletedAt: 1, createdAt: -1, id: 1 })
+  await db.collection('rfqs').createIndex({ 'customer.email': 1, deletedAt: 1, createdAt: -1, id: 1 })
+  await db.collection('rfqs').createIndex({ year: 1, rfqNumber: -1 })
+  await db.collection('rfqs').createIndex({ 'files.id': 1 })
+  await db.collection('companies').createIndex({ deletedAt: 1, name: 1, id: 1 })
+  await db.collection('companyMembers').createIndex({ userId: 1, status: 1 })
+  await db.collection('companyMembers').createIndex({ companyId: 1 })
+  await db.collection('orders').createIndex({ companyId: 1, createdAt: -1 })
   await db.collection('rateLimits').createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
   await db.collection('users').createIndex({ email: 1 }, { unique: true })
   const s = await db.collection('_meta').findOne({ key: 'seeded_v2' })
@@ -120,26 +133,40 @@ function newProductionStages() {
 }
 
 // === HANDLER ===
-async function handler(request, ctx) {
-  try {
-    if (['POST','PATCH','PUT'].includes(request.method)) {
-      if (Number(request.headers.get('content-length')) > 3_800_000) throw new HttpError(413, 'Request is too large. Keep attachments under 2.5 MB.')
-      const raw = await request.clone().text()
-      if (Buffer.byteLength(raw) > 3_800_000) throw new HttpError(413, 'Request is too large. Keep attachments under 2.5 MB.')
-      const body = JSON.parse(raw)
-      if (!body || typeof body !== 'object' || Array.isArray(body)) throw new HttpError(400, 'Request must contain an object')
-    }
+async function dispatchRequest(request, ctx) {
+    if (!isSameOriginMutation(request)) throw new HttpError(403, 'Refresh this page and try again from this website', 'REQUEST_ORIGIN')
+    if (['POST','PATCH','PUT'].includes(request.method)) await boundedBody(request)
     const db = await getDb()
     const method = request.method
     const p = await ctx.params
     const path = p?.path || []
     const route = path.join('/')
 
-    if (route === '' || route === 'health') return json({ status: 'ok', service: 'VEW API' })
+    if (route === '' || route === 'health') { await db.command({ ping: 1 }, { maxTimeMS: 5000 }); return json({ status: 'ok', service: 'VEW API' }) }
 
     const authentication = await handleAuth(route, request, db)
-    if (authentication) return json(authentication.data, authentication.status)
+    if (authentication) {
+      const { token, ...data } = authentication.data
+      const response = json(data, authentication.status)
+      if (token) { setSession(response, token); setSession(response, '', ownerSessionName()) }
+      return response
+    }
     const me = await getAuthUser(request, db)
+    if (route === 'auth/logout' && method === 'POST') {
+      let actor = me
+      if (readCookie(request, ownerSessionName())) actor = await getAuthUser(new Request(request.url, { headers: { cookie: `${sessionName()}=${readCookie(request, ownerSessionName())}` } }), db)
+      if (actor && !actor._impersonatedBy) await db.collection('users').updateOne({ id: actor.id }, { $inc: { sessionVersion: 1 } })
+      return setSession(setSession(json({ success: true }), ''), '', ownerSessionName())
+    }
+    if (route === 'auth/exit-impersonation' && method === 'POST') {
+      const token = readCookie(request, ownerSessionName())
+      const owner = await getAuthUser(new Request(request.url, { headers: { cookie: `${sessionName()}=${token}` } }), db)
+      if (!isOwner(owner) || owner._impersonatedBy) throw new HttpError(403, 'Sign in again as the owner')
+      return setSession(setSession(json({ user: owner }), token), '', ownerSessionName())
+    }
+    if (me && !['GET','HEAD'].includes(method)) await rateLimit(db, `write:${me.id}`, 120, 60000)
+    const companyOrders = await handleCompanyOrders(route, request, db, me)
+    if (companyOrders) return json(companyOrders)
     const management = await handleManagement(route, request, db, me)
     if (management) return json(management)
     // Deny every nested RFQ/file route unless the caller owns the record or is staff.
@@ -202,19 +229,22 @@ async function handler(request, ctx) {
         statusHistory: [{ status: 'Submitted', at: now, note: 'RFQ submitted' }],
         messages: [], createdAt: now, updatedAt: now,
       }
-      await db.collection('rfqs').insertOne(doc)
-      mockSendEmail({
-        to: customer.email,
-        subject: `RFQ ${rfqNumber} received — Vijaya Engineering Works`,
-        body: `Thank you ${customer.firstName || ''}, we have received your RFQ ${rfqNumber} for ${b.gearType}. Our engineering team will review it shortly.`
-      })
+      const inserted = await insertOnce(db.collection('rfqs'), request, me.id, b, doc)
+      if (inserted.replayed) return json({ success: true, rfq: safeRfq(inserted.doc, me), receiptEmailStatus: inserted.doc.receiptEmailStatus || 'pending' })
+      let receiptEmailStatus = 'accepted'
+      try { await deliverRfqReceipt(doc) } catch {
+        receiptEmailStatus = 'failed'
+        console.error('RFQ receipt email failed', { code: 'EMAIL_DELIVERY', rfqId: doc.id })
+      }
+      // The request is already saved. Email/provider failures must never invite duplicate orders.
+      doc.receiptEmailStatus = receiptEmailStatus
+      try { await db.collection('rfqs').updateOne({ id: doc.id }, { $set: { receiptEmailStatus } }) }
+      catch { console.error('RFQ receipt status could not be saved', { rfqId: doc.id }) }
       const { _id, ...rest } = doc
-      return json({ success: true, rfq: rest })
+      return json({ success: true, rfq: rest, receiptEmailStatus })
     }
 
     if (route === 'rfq' && method === 'GET') {
-      const url = new URL(request.url)
-      const email = url.searchParams.get('email')
       let query = {}
       if (me && me.role === 'customer') {
         // Customer can only see their own (by userId or matching email)
@@ -224,8 +254,13 @@ async function handler(request, ctx) {
       } else {
         return json({ error: 'Unauthorized' }, 401)
       }
-      const rfqs = await db.collection('rfqs').find({ ...query, deletedAt: { $exists: false } }, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray()
-      return json({ rfqs: rfqs.map(r => safeRfq(r, me)) })
+      const params = new URL(request.url).searchParams, q = literalSearch(params.get('q'))
+      const groups = { new: ['Submitted'], review: ['Under Review','Engineering Review','Need More Information'], quotes: ['Quote Prepared','Quote Sent'], production: ['Customer Approved','Order Confirmed','In Production','Quality Inspection'], completed: ['Completed'] }
+      const conditions = [query, { deletedAt: { $exists: false } }]
+      if (q) conditions.push({ $or: ['rfqNumber','gearType','customer.email','customer.companyName','customer.firstName','customer.lastName','general.partName','general.partNumber'].map(k => ({ [k]: { $regex: q, $options: 'i' } })) })
+      if (groups[params.get('filter')]) conditions.push({ status: { $in: groups[params.get('filter')] } })
+      const { rows, pagination } = await pageQuery(db.collection('rfqs'), { $and: conditions }, request)
+      return json({ rfqs: rows.map(r => safeRfq(r, me)), pagination })
     }
 
     if (route.startsWith('rfq/') && path.length === 2 && method === 'GET') {
@@ -387,15 +422,14 @@ async function handler(request, ctx) {
       await rateLimit(db, `upload:${me.id}`, 30, 3600_000)
       let total = 0
       const validated = b.files.map(f => {
-        if (typeof f.dataUrl !== 'string' || !/^data:(application\/pdf|image\/(png|jpeg)|application\/octet-stream);base64,[A-Za-z0-9+/=]+$/.test(f.dataUrl)) throw new HttpError(400, 'Only PDF, PNG, JPG, and binary drawing files are supported')
-        const size = Buffer.byteLength(f.dataUrl.split(',')[1], 'base64')
-        total += size
-        if (total > 2_500_000 || !text(f.name, 200)) throw new HttpError(400, 'Keep total attachments under 2.5 MB')
-        return { id: uuidv4(), userId: me.id, name: text(f.name, 200), type: f.dataUrl.slice(5).split(';')[0], size, dataUrl: f.dataUrl, uploadedAt: new Date().toISOString() }
+        const valid = validateUpload(f)
+        total += valid.size
+        if (total > 2_500_000) throw new HttpError(400, 'Keep total attachments under 2.5 MB')
+        return { ...valid, id: uuidv4(), userId: me.id, uploadedAt: new Date().toISOString() }
       })
-      for (const doc of validated) {
-        await db.collection('files').insertOne(doc)
-        saved.push({ id: doc.id, name: doc.name, type: doc.type, size: doc.size })
+      for (const [index, doc] of validated.entries()) {
+        const result = await insertOnce(db.collection('files'), request, `${me.id}:${index}`, b.files, doc)
+        saved.push({ id: result.doc.id, name: result.doc.name, type: result.doc.type, size: result.doc.size })
       }
       return json({ success: true, files: saved })
     }
@@ -414,16 +448,11 @@ async function handler(request, ctx) {
     if (route === 'admin/users' && method === 'GET') {
       if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const url = new URL(request.url)
-      const q = (url.searchParams.get('q') || '').toLowerCase()
-      const users = await db.collection('users').find(isOwner(me) ? {} : { role: 'customer' }).sort({ createdAt: -1 }).toArray()
-      // Attach RFQ count
-      const rfqs = await db.collection('rfqs').find({}, { projection: { userId: 1, 'customer.email': 1 } }).toArray()
-      const enriched = users.map(u => ({
-        ...safeUser(u),
-        rfqCount: rfqs.filter(r => r.userId === u.id || r.customer?.email === u.email).length,
-      }))
-      const filtered = q ? enriched.filter(u => [u.firstName, u.lastName, u.email, u.phone, u.companyName].filter(Boolean).some(x => x.toLowerCase().includes(q))) : enriched
-      return json({ users: filtered })
+      const q = literalSearch(url.searchParams.get('q'))
+      const filter = { ...(isOwner(me) ? {} : { role: 'customer' }), ...(q ? { $or: ['firstName','lastName','email','phone','companyName'].map(k => ({ [k]: { $regex: q, $options: 'i' } })) } : {}) }
+      const { rows, pagination } = await pageQuery(db.collection('users'), filter, request)
+      const enriched = await Promise.all(rows.map(async u => ({ ...safeUser(u), rfqCount: await db.collection('rfqs').countDocuments({ $or: [{ userId: u.id }, { 'customer.email': u.email }] }, { maxTimeMS: 8000 }) })))
+      return json({ users: enriched, pagination })
     }
 
     if (route.match(/^admin\/users\/[^/]+$/) && ['PATCH','DELETE'].includes(method)) {
@@ -478,7 +507,7 @@ async function handler(request, ctx) {
       if (!isOwner(me) || me._impersonatedBy || u.role !== 'customer' || u.email === me.email || !u.emailVerifiedAt || !u.isActive) return json({ error: 'Only the owner may view verified customer accounts' }, 403)
       const token = signToken({ userId: u.id, role: u.role, sessionVersion: u.sessionVersion || 0, ownerSessionVersion: (await db.collection('users').findOne({ id: me.id })).sessionVersion || 0, impersonatedBy: me.id, impersonatedByEmail: me.email })
       const safe = safeUser(u)
-      return json({ token, user: safe, impersonating: true })
+      return setSession(setSession(json({ user: { ...safe, _impersonatedBy: me.email }, impersonating: true }), token), readCookie(request), ownerSessionName())
     }
 
     // Admin stats
@@ -486,22 +515,31 @@ async function handler(request, ctx) {
       if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const now = new Date()
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-      const rfqs = await db.collection('rfqs').find({ deletedAt: { $exists: false } }).toArray()
-      const thisMonth = rfqs.filter(r => r.createdAt >= startOfMonth).length
-      const quotesSent = rfqs.filter(r => ['Quote Sent','Customer Approved','Order Confirmed','In Production','Quality Inspection','Ready to Ship','Shipped','Completed'].includes(r.status)).length
-      const inProduction = rfqs.filter(r => ['Order Confirmed','In Production','Quality Inspection','Ready to Ship'].includes(r.status)).length
-      const totalValue = rfqs.reduce((sum, r) => sum + (Number(r.pricing?.total) || 0), 0)
-      const stageCounts = {}
-      for (const s of PRODUCTION_STAGES) stageCounts[s] = 0
-      for (const r of rfqs) {
-        for (const st of (r.productionStages || [])) {
-          if (st.status === 'IN_PROGRESS') stageCounts[st.name] = (stageCounts[st.name] || 0) + 1
-        }
-      }
-      return json({ total: rfqs.length, thisMonth, quotesSent, inProduction, totalValue, stageCounts })
+      const aggregate = await db.collection('rfqs').aggregate([
+        { $match: { deletedAt: { $exists: false } } },
+        { $facet: {
+          totals: [{ $group: { _id: null, total: { $sum: 1 },
+            thisMonth: { $sum: { $cond: [{ $gte: ['$createdAt', startOfMonth] }, 1, 0] } },
+            quotesSent: { $sum: { $cond: [{ $in: ['$status', ['Quote Sent','Customer Approved','Order Confirmed','In Production','Quality Inspection','Ready to Ship','Shipped','Completed']] }, 1, 0] } },
+            inProduction: { $sum: { $cond: [{ $in: ['$status', ['Order Confirmed','In Production','Quality Inspection','Ready to Ship']] }, 1, 0] } },
+            totalValue: { $sum: { $convert: { input: '$pricing.total', to: 'double', onError: 0, onNull: 0 } } }
+          } }],
+          stages: [{ $unwind: '$productionStages' }, { $match: { 'productionStages.status': 'IN_PROGRESS' } }, { $group: { _id: '$productionStages.name', count: { $sum: 1 } } }]
+        } }
+      ], { maxTimeMS: 8000 }).next()
+      const { _id, ...totals } = aggregate.totals[0] || { total: 0, thisMonth: 0, quotesSent: 0, inProduction: 0, totalValue: 0 }
+      const stageCounts = Object.fromEntries(PRODUCTION_STAGES.map(s => [s, 0]))
+      for (const stage of aggregate.stages) stageCounts[stage._id] = stage.count
+      return json({ ...totals, stageCounts })
     }
 
     return json({ error: 'Not found', route, method }, 404)
+}
+
+// Keep response/error translation separate from request validation and dispatch.
+async function handler(request, ctx) {
+  try {
+    return await dispatchRequest(request, ctx)
   } catch (err) {
     const code = err.code
     if (err instanceof HttpError) return json({ error: err.message, code: err.code }, err.status)
