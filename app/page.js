@@ -854,13 +854,14 @@ function ProductsPage({ setRoute, cms }) {
           <p className="text-[#a39e93] mb-12 max-w-2xl text-lg font-light">Every gear we manufacture is built from your drawings and specifications.</p>
         </FadeIn>
         <motion.div initial="hidden" animate="visible" variants={stagger} className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {PRODUCTS.map(p => (
+          {PRODUCTS.map((p, pi) => (
             <motion.div key={p.key} variants={fadeUp} whileHover={{ y: -8 }}>
               <SpotCard onClick={() => setRoute('product:' + p.key)}
                 className="overflow-hidden group cursor-pointer rounded-2xl bg-[#100d0a]/90 border border-white/10 hover:border-[#ff8a1e]/60 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_50px_-12px_rgba(255,106,0,0.35)] h-full">
                 <div className="aspect-[4/3] overflow-hidden bg-black relative">
                   <ResponsiveImage src={p.img} alt={p.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#100d0a]/70 via-transparent to-transparent" />
+                  <div className="absolute top-4 right-4 font-tech text-[10px] tracking-[0.2em] text-white/80 bg-black/45 backdrop-blur px-2.5 py-1 rounded-full border border-white/15">{String(pi + 1).padStart(2, '0')}</div>
                 </div>
                 <div className="p-6">
                   <h3 className="font-display font-bold text-xl text-[#f5f1ea] mb-2 group-hover:text-[#ffb52e] transition-colors">{p.title}</h3>
@@ -897,6 +898,16 @@ function ProductDetail({ productKey, setRoute, cms }) {
               <div className="absolute inset-0 bg-gradient-to-t from-[#070605]/50 to-transparent" />
             </div>
           </FadeIn>
+        </div>
+      </section>
+      <section className="border-y border-white/10 bg-[#0b0908]">
+        <div className="container mx-auto px-4 py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
+          {[['±0.002 mm', 'Grinding tolerance'], ['AGMA Q12', 'Gear quality grade'], ['1200 mm', 'Max outside diameter'], ['6+', 'Material families']].map(([v, l]) => (
+            <div key={l} className="flex items-center gap-3">
+              <div className="font-display text-2xl font-bold text-molten whitespace-nowrap">{v}</div>
+              <div className="font-tech text-[10px] uppercase tracking-[0.18em] text-[#a39e93] leading-relaxed">{l}</div>
+            </div>
+          ))}
         </div>
       </section>
       <FadeIn>
@@ -960,7 +971,7 @@ function CapabilitiesPage() {
                 <div className="absolute inset-0 rounded-2xl border border-[#ff8a1e]/0 group-hover:border-[#ff8a1e]/50 transition-colors duration-500" />
               </div>
               <div>
-                <div className="text-[#ff8a1e]/80 font-tech text-xs uppercase tracking-[0.25em] mb-3">Capability {String(i + 1).padStart(2, '0')}</div>
+                <div className="font-display text-7xl md:text-8xl font-bold text-outline-faint leading-none mb-5 select-none" aria-hidden>{String(i + 1).padStart(2, '0')}</div>
                 <h2 className="font-display text-3xl md:text-4xl font-bold text-[#f5f1ea] mb-4 tracking-tight">{s.title}</h2>
                 <p className="text-[#a39e93] text-lg leading-relaxed font-light">{s.desc}</p>
               </div>
@@ -1200,107 +1211,140 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-10 bg-gradient-to-br from-slate-50 via-white to-slate-100">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <motion.div animate={{ rotate: 360 }} transition={{ duration: 30, repeat: Infinity, ease: 'linear' }} className="inline-block">
-            <Cog className="h-12 w-12 text-amber-500" strokeWidth={2} />
-          </motion.div>
-          <div className="mt-3 font-bold text-2xl text-slate-900 tracking-tight">Vijaya Engineering Works</div>
-          <div className="text-xs uppercase tracking-widest text-amber-600 mt-1">VEW · Precision Gears</div>
+    <div className="min-h-[calc(100vh-4rem)] grid lg:grid-cols-[1.05fr_1fr] bg-[#070605]">
+      {/* ============ BRAND PANEL ============ */}
+      <div className="relative hidden lg:flex flex-col justify-between overflow-hidden p-12 xl:p-16 text-white">
+        <div className="absolute inset-0">
+          <ResponsiveImage src={HERO_IMG} alt="" className="w-full h-full object-cover opacity-25" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#070605]/85 via-[#070605]/92 to-[#070605]" />
         </div>
-        <Card className="border-slate-200 shadow-2xl shadow-slate-200/60 overflow-hidden">
-          <CardHeader className="bg-slate-950 text-white pb-8">
-            <CardTitle className="text-2xl tracking-tight">
-              {titles[mode] || titles.login}
-            </CardTitle>
-            <CardDescription className="text-slate-400">
-              {descriptions[mode] || descriptions.login}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-6 -mt-4">
-            {['login','signup','forgot','reset'].includes(mode) && <form onSubmit={submit} className="space-y-4 bg-white rounded-lg">
-              {mode === 'signup' && <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label className="text-slate-700">First Name *</Label><Input required className="mt-1" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></div>
-                  <div><Label className="text-slate-700">Last Name *</Label><Input required className="mt-1" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></div>
+        <div className="absolute inset-0"><Orbs /></div>
+        <div className="relative flex items-center gap-3">
+          <GearLogo className="h-10 w-10" spin />
+          <div>
+            <div className="font-display font-bold text-lg tracking-tight">Vijaya Engineering Works</div>
+            <div className="font-tech text-[10px] uppercase tracking-[0.3em] text-[#ffb52e]">VEW · Precision Gears</div>
+          </div>
+        </div>
+        <div className="relative">
+          <div className="font-tech text-[11px] uppercase tracking-[0.42em] text-[#ff8a1e] mb-6">{'// Customer portal'}</div>
+          <h2 className="font-display text-5xl xl:text-6xl font-bold tracking-tight leading-[1.02] mb-6">
+            Every gear.<br />
+            <span className="text-molten">Every stage.</span><br />
+            <span className="text-outline">Live.</span>
+          </h2>
+          <p className="text-[#a39e93] text-lg font-light max-w-md leading-relaxed">
+            Submit RFQs, approve quotes, and watch your gears move through ten production stages — in real time.
+          </p>
+          <div className="grid grid-cols-3 gap-6 mt-12 max-w-md border-t border-white/10 pt-8">
+            {[['30+', 'Years cutting'], ['Q12', 'AGMA grade'], ['±0.002', 'mm tolerance']].map(([v, l]) => (
+              <div key={l}>
+                <div className="font-display text-3xl font-bold text-[#f5f1ea]">{v}</div>
+                <div className="font-tech text-[10px] uppercase tracking-[0.22em] text-[#a39e93] mt-1.5">{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="relative font-tech text-[10px] uppercase tracking-[0.32em] text-[#a39e93]">ISO 9001 · AGMA Q12 · 1200 mm max OD</div>
+      </div>
+
+      {/* ============ FORM PANEL ============ */}
+      <div className="relative bg-white flex items-center justify-center px-6 py-12 sm:px-12 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(255,138,30,0.07),transparent)]" />
+        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="relative w-full max-w-md">
+          <div className="lg:hidden flex items-center gap-2.5 mb-10">
+            <GearLogo className="h-9 w-9" spin />
+            <div className="font-display font-bold text-slate-900 tracking-tight">Vijaya Engineering Works</div>
+          </div>
+          <div className="font-tech text-[11px] uppercase tracking-[0.32em] text-amber-600 mb-4">
+            {'// '}{mode === 'signup' ? 'Create account' : mode === 'login' ? 'Welcome back' : 'Account access'}
+          </div>
+          <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 mb-3">{titles[mode] || titles.login}</h1>
+          <p className="text-slate-500 mb-8 leading-relaxed">{descriptions[mode] || descriptions.login}</p>
+
+          {['login','signup','forgot','reset'].includes(mode) && <form onSubmit={submit} className="space-y-4">
+            {mode === 'signup' && <>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label className="text-slate-900 font-medium">First Name *</Label><Input required className="mt-1.5 h-12 rounded-xl" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></div>
+                <div><Label className="text-slate-900 font-medium">Last Name *</Label><Input required className="mt-1.5 h-12 rounded-xl" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></div>
+              </div>
+              <div><Label className="text-slate-900 font-medium">Company Name</Label><Input className="mt-1.5 h-12 rounded-xl" value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} /></div>
+              <div><Label className="text-slate-900 font-medium">Email *</Label>
+                <div className="relative mt-1.5"><Mail className="h-4 w-4 text-slate-400 absolute left-3.5 top-4" />
+                  <Input required type="email" className="pl-10 h-12 rounded-xl" placeholder="you@company.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
                 </div>
-                <div><Label className="text-slate-700">Company Name</Label><Input className="mt-1" value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} /></div>
-                <div><Label className="text-slate-700">Email *</Label>
-                  <div className="relative mt-1"><Mail className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
-                    <Input required type="email" className="pl-9" placeholder="you@company.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-                  </div>
+              </div>
+              <div><Label className="text-slate-900 font-medium">Phone *</Label>
+                <div className="relative mt-1.5"><Phone className="h-4 w-4 text-slate-400 absolute left-3.5 top-4" />
+                  <Input required type="tel" className="pl-10 h-12 rounded-xl" placeholder="+91 98765 43210" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
                 </div>
-                <div><Label className="text-slate-700">Phone *</Label>
-                  <div className="relative mt-1"><Phone className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
-                    <Input required type="tel" className="pl-9" placeholder="+91 98765 43210" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-                  </div>
-                  <div className="text-xs text-slate-500 mt-1">You'll be able to sign in with either email or phone.</div>
+                <div className="text-xs text-slate-500 mt-1.5">You&apos;ll be able to sign in with either email or phone.</div>
+              </div>
+            </>}
+            {(mode === 'login' || mode === 'forgot') && (
+              <div><Label className="text-slate-900 font-medium">{mode === 'forgot' ? 'Email address' : 'Email or Phone'}</Label>
+                <div className="relative mt-1.5"><User className="h-4 w-4 text-slate-400 absolute left-3.5 top-4" />
+                  <Input aria-label={mode === 'forgot' ? 'Email address' : 'Email or phone'} autoComplete="username" required type={mode === 'forgot' ? 'email' : 'text'} className="pl-10 h-12 rounded-xl" placeholder={mode === 'forgot' ? 'you@company.com' : 'Email address or phone number'} value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
                 </div>
-              </>}
-              {(mode === 'login' || mode === 'forgot') && (
-                <div><Label className="text-slate-700">{mode === 'forgot' ? 'Email address' : 'Email or Phone'}</Label>
-                  <div className="relative mt-1"><User className="h-4 w-4 text-slate-400 absolute left-3 top-3" />
-                    <Input aria-label={mode === 'forgot' ? 'Email address' : 'Email or phone'} autoComplete="username" required type={mode === 'forgot' ? 'email' : 'text'} className="pl-9 h-11" placeholder={mode === 'forgot' ? 'you@company.com' : 'Email address or phone number'} value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
-                  </div>
+              </div>
+            )}
+            {(mode === 'login' || mode === 'signup' || mode === 'reset') && (
+              <div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-slate-900 font-medium">Password{mode === 'signup' && ' *'}</Label>
+                  {mode === 'login' && <button type="button" onClick={() => setMode('forgot')} className="text-xs text-amber-600 font-semibold hover:underline">Forgot password?</button>}
                 </div>
-              )}
-              {(mode === 'login' || mode === 'signup' || mode === 'reset') && (
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label className="text-slate-700">Password{mode === 'signup' && ' *'}</Label>
-                    {mode === 'login' && <button type="button" onClick={() => setMode('forgot')} className="text-xs text-amber-600 font-medium hover:underline">Forgot password?</button>}
-                  </div>
-                  <Input aria-label="Password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? undefined : 8} maxLength={128} type="password" className="mt-1 h-11" placeholder={mode === 'signup' || mode === 'reset' ? 'At least 8 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-                </div>
-              )}
-              {mode === 'reset' && <div><Label className="text-slate-700">Confirm new password</Label><Input aria-label="Confirm new password" autoComplete="new-password" required minLength={8} type="password" className="mt-1 h-11" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} /></div>}
-              <Button disabled={loading} type="submit" className="w-full bg-slate-900 hover:bg-slate-800 h-11 rounded-full font-semibold">
+                <Input aria-label="Password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? undefined : 8} maxLength={128} type="password" className="mt-1.5 h-12 rounded-xl" placeholder={mode === 'signup' || mode === 'reset' ? 'At least 8 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
+              </div>
+            )}
+            {mode === 'reset' && <div><Label className="text-slate-900 font-medium">Confirm new password</Label><Input aria-label="Confirm new password" autoComplete="new-password" required minLength={8} type="password" className="mt-1.5 h-12 rounded-xl" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} /></div>}
+            <div className="pt-2">
+              <Button disabled={loading} type="submit" className="btn-molten w-full h-12 rounded-full font-tech uppercase tracking-[0.18em] text-sm">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : mode === 'reset' ? 'Update Password' : 'Send Reset Instructions'}
               </Button>
-            </form>}
-            {mode === 'verify' && <div className="text-center py-6 space-y-4">
-              {loading && <Loader2 className="h-8 w-8 animate-spin text-amber-500 mx-auto" />}
-              {!loading && !actionMessage && !actionError && <Button onClick={confirmEmail}>Verify email address</Button>}
-              {actionMessage && <><CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto" /><p className="text-sm text-slate-700">{actionMessage}</p><Button onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full bg-slate-900">Continue to sign in</Button></>}
-              {actionError && <><p className="text-sm text-red-600">{actionError}</p><Button variant="outline" onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full">Return to sign in</Button></>}
-            </div>}
-            {['verification-sent','reset-sent'].includes(mode) && <div className="text-center py-6 space-y-4"><Mail className="h-10 w-10 text-amber-500 mx-auto" /><p className="text-sm text-slate-700">{actionMessage}</p><Button variant="outline" onClick={() => setMode('login')} className="rounded-full">Back to sign in</Button></div>}
-            {mode === 'unverified' && <div className="text-center py-6 space-y-4"><Mail className="h-10 w-10 text-amber-500 mx-auto" /><p className="text-sm text-slate-700">Your account must be verified before you can sign in.</p><Input aria-label="Email to verify" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Your email address" /><Button disabled={loading} onClick={resendVerification} className="rounded-full bg-slate-900">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend verification email'}</Button></div>}
-            <div className="mt-5 pt-5 border-t text-center text-sm text-slate-600 space-y-2">
-              {mode === 'login' && <>
-                <div>New to VEW? <button onClick={() => setMode('signup')} className="text-amber-600 font-semibold">Create an account</button></div>
-              </>}
-              {mode === 'login' && <div><button onClick={() => setMode('unverified')} className="text-amber-600 font-semibold">Resend verification email</button></div>}
-              {['unverified','reset'].includes(mode) && <div><button onClick={() => { clearAuthAction?.(); setMode('login') }} className="text-amber-600 font-semibold">Back to sign in</button></div>}
-              {mode === 'signup' && <div>Already have an account? <button onClick={() => setMode('login')} className="text-amber-600 font-semibold">Sign in</button></div>}
-              {mode === 'forgot' && <div><button onClick={() => setMode('login')} className="text-amber-600 font-semibold">← Back to sign in</button></div>}
             </div>
-          </CardContent>
-        </Card>
-        <div className="text-center text-xs text-slate-500 mt-6">Protected by password hashing (scrypt). Your credentials are never stored in plain text.</div>
-      </motion.div>
+          </form>}
+          {mode === 'verify' && <div className="text-center py-6 space-y-4">
+            {loading && <Loader2 className="h-8 w-8 animate-spin text-amber-500 mx-auto" />}
+            {!loading && !actionMessage && !actionError && <Button onClick={confirmEmail} className="btn-molten rounded-full">Verify email address</Button>}
+            {actionMessage && <><CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto" /><p className="text-sm text-slate-700">{actionMessage}</p><Button onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full bg-slate-900">Continue to sign in</Button></>}
+            {actionError && <><p className="text-sm text-red-600">{actionError}</p><Button variant="outline" onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full">Return to sign in</Button></>}
+          </div>}
+          {['verification-sent','reset-sent'].includes(mode) && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-amber-100 text-amber-600 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">{actionMessage}</p><Button variant="outline" onClick={() => setMode('login')} className="rounded-full">Back to sign in</Button></div>}
+          {mode === 'unverified' && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-amber-100 text-amber-600 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">Your account must be verified before you can sign in.</p><Input aria-label="Email to verify" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Your email address" className="h-12 rounded-xl" /><Button disabled={loading} onClick={resendVerification} className="btn-molten rounded-full">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend verification email'}</Button></div>}
 
-      {/* Welcome / success modal */}
+          <div className="mt-8 pt-6 border-t border-slate-100 text-center text-sm text-slate-600 space-y-2.5">
+            {mode === 'login' && <div>New to VEW? <button onClick={() => setMode('signup')} className="text-amber-600 font-semibold hover:underline">Create an account</button></div>}
+            {mode === 'login' && <div><button onClick={() => setMode('unverified')} className="text-slate-500 hover:text-amber-600 font-medium">Resend verification email</button></div>}
+            {['unverified','reset'].includes(mode) && <div><button onClick={() => { clearAuthAction?.(); setMode('login') }} className="text-amber-600 font-semibold hover:underline">Back to sign in</button></div>}
+            {mode === 'signup' && <div>Already have an account? <button onClick={() => setMode('login')} className="text-amber-600 font-semibold hover:underline">Sign in</button></div>}
+            {mode === 'forgot' && <div><button onClick={() => setMode('login')} className="text-amber-600 font-semibold hover:underline">← Back to sign in</button></div>}
+          </div>
+          <div className="text-center text-xs text-slate-400 mt-8">Protected by password hashing (scrypt). Your credentials are never stored in plain text.</div>
+        </motion.div>
+      </div>
+
+      {/* Welcome modal */}
       <Dialog open={!!welcome} onOpenChange={o => !o && setWelcome(null)}>
-        <DialogContent className="max-w-sm text-center">
+        <DialogContent className="max-w-sm text-center rounded-3xl">
           <DialogHeader>
-            <div className="mx-auto mb-2">
+            <div className="mx-auto mb-3">
               <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                className="inline-flex bg-emerald-100 text-emerald-600 rounded-full p-4">
+                className="inline-flex rounded-full p-4 text-white shadow-[0_10px_40px_-10px_rgba(255,106,0,0.6)]" style={{ background: 'linear-gradient(135deg,#ffd23f,#ff8a1e 50%,#ff4d00)' }}>
                 <CheckCircle2 className="h-12 w-12" />
               </motion.div>
             </div>
-            <DialogTitle className="text-center text-2xl">
-              {welcome?.isNew ? `Welcome to VEW, ${welcome?.name}!` : `Welcome back, ${welcome?.name}!`}
+            <div className="font-tech text-[10px] uppercase tracking-[0.3em] text-amber-600 mb-2">{'// Signed in'}</div>
+            <DialogTitle className="text-center font-display text-3xl tracking-tight">
+              {welcome?.isNew ? `Welcome, ${welcome?.name}!` : `Welcome back, ${welcome?.name}!`}
             </DialogTitle>
             <DialogDescription className="text-center pt-2">
               {welcome?.isNew
-                ? "Your account is ready. You can now submit RFQs and track every stage of production live."
+                ? "Your account is ready. Submit RFQs and track every stage of production live."
                 : isStaff(welcome) ? 'Signed in as administrator.' : "You're signed in. Continue to your portal to see all your RFQs and orders."}
             </DialogDescription>
           </DialogHeader>
-          <Button onClick={continueAfterWelcome} className="w-full bg-slate-900 hover:bg-slate-800 rounded-full h-11 mt-2">
+          <Button onClick={continueAfterWelcome} className="btn-molten w-full rounded-full h-12 mt-2 font-tech uppercase tracking-[0.18em] text-sm">
             {isStaff(welcome) ? 'Go to Admin Dashboard' : 'Continue to My Portal'} <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </DialogContent>
@@ -1497,94 +1541,125 @@ function RfqWizard({ setRoute, prefill, auth }) {
   const canNext = () => step === 1 ? !!gearType : step === 3 ? Number.isFinite(Number(general.quantity)) && Number(general.quantity) > 0 : step === 5 ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email || '') && customer.firstName && customer.lastName : true
 
   if (submitted) return (
-    <div className="container mx-auto px-4 py-20 max-w-2xl text-center">
-      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200 }} className="inline-flex bg-emerald-100 text-emerald-600 rounded-full p-5 mb-6"><CheckCircle2 className="h-16 w-16" /></motion.div>
-      <h1 className="text-4xl font-bold text-slate-900 mb-3 tracking-tight">Thank you.</h1>
-      <p className="text-slate-600 mb-2">Your RFQ number:</p>
-      <div className="text-3xl font-bold tracking-wider text-amber-600 mb-6">{submitted.rfqNumber}</div>
-      <p className="text-slate-600 mb-4">Our engineering team will review your request and reach out to <strong>{submitted.customer.email}</strong> with the next steps. Track its progress in your portal.</p>
-      <p role="status" className="text-sm text-slate-600 mb-8">{submitted.receiptEmailStatus==='accepted'?'Your confirmation email has been submitted for delivery. Check your inbox and spam folder.':'Your request is safely saved, but the confirmation email could not be sent. There is no need to submit your request again.'}</p>
-      <div className="flex gap-3 justify-center flex-wrap">
-        <Button onClick={() => setRoute('portal')} className="bg-slate-900 hover:bg-slate-800 rounded-full">View in Portal</Button>
-        <Button variant="outline" onClick={() => setRoute('home')} className="rounded-full">Back to Home</Button>
+    <div className="bg-[#faf9f7] min-h-screen">
+      <div className="container mx-auto px-4 py-20 max-w-2xl text-center">
+        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 200 }}
+          className="inline-flex rounded-full p-5 mb-8 text-white shadow-[0_15px_50px_-12px_rgba(255,106,0,0.55)]" style={{ background: 'linear-gradient(135deg,#ffd23f,#ff8a1e 50%,#ff4d00)' }}>
+          <CheckCircle2 className="h-14 w-14" />
+        </motion.div>
+        <div className="font-tech text-[11px] uppercase tracking-[0.4em] text-amber-600 mb-4">{'// RFQ submitted'}</div>
+        <h1 className="font-display text-5xl md:text-6xl font-bold text-slate-900 mb-4 tracking-tight">Thank you.</h1>
+        <p className="text-slate-500 mb-2">Your RFQ number</p>
+        <div className="font-display text-4xl font-bold tracking-wide mb-6"><span className="text-molten">{submitted.rfqNumber}</span></div>
+        <p className="text-slate-600 mb-4 max-w-lg mx-auto leading-relaxed">Our engineering team will review your request and reach out to <strong className="text-slate-900">{submitted.customer.email}</strong> with the next steps. Track its progress in your portal.</p>
+        <p role="status" className="text-sm text-slate-500 mb-10 max-w-lg mx-auto">{submitted.receiptEmailStatus==='accepted'?'Your confirmation email has been submitted for delivery. Check your inbox and spam folder.':'Your request is safely saved, but the confirmation email could not be sent. There is no need to submit your request again.'}</p>
+        <div className="flex gap-3 justify-center flex-wrap">
+          <Button onClick={() => setRoute('portal')} className="btn-molten rounded-full h-12 px-8 font-tech uppercase tracking-[0.18em] text-sm">View in Portal</Button>
+          <Button variant="outline" onClick={() => setRoute('home')} className="rounded-full h-12 px-8 bg-white">Back to Home</Button>
+        </div>
       </div>
     </div>
   )
 
   const steps = ['Gear Type','Specifications','Quantity','Drawings','Customer','Review']
+  const stepTitles = ['What are we cutting?', `${gearType || 'Your'} specifications`, 'Quantity & manufacturing', 'Your drawings', 'Where do we send the quote?', 'Review & submit']
+  const stepSubs = [
+    'Choose the gear family closest to your part.',
+    'Fill in what you know — leave the rest blank.',
+    'How many, from what material, and by when.',
+    'PDF, STEP, DXF, DWG, JPG or PNG. Up to five files, 2.5 MB combined.',
+    'So our engineers can reach you with the quote.',
+    'One last look before it hits our shop floor.',
+  ]
   return (
-    <div className="container mx-auto px-4 py-10 max-w-4xl">
-      <FadeIn>
-        <h1 className="text-4xl font-bold text-slate-900 mb-2 tracking-tight">Request a Quote</h1>
-        <p className="text-slate-600 mb-6">6-step form. Fill only what you know.</p>
-        <div className="mb-6">
-          <div className="flex justify-between text-xs text-slate-500 mb-2 gap-1">
-            {steps.map((s, i) => <div key={s} className={`flex-1 text-center ${i + 1 <= step ? 'text-amber-600 font-semibold' : ''}`}>{i + 1}. {s}</div>)}
+    <div className="bg-[#faf9f7] min-h-screen">
+      <div className="container mx-auto px-4 py-12 md:py-16 max-w-3xl">
+        <FadeIn>
+          <div className="text-center mb-10">
+            <div className="font-tech text-[11px] uppercase tracking-[0.4em] text-amber-600 mb-4">{'// Request for quote'}</div>
+            <h1 className="font-display text-5xl md:text-6xl font-bold tracking-tight text-slate-900">Request a Quote</h1>
+            <p className="text-slate-500 mt-4 text-lg font-light">Six quick steps. Fill in only what you know.</p>
           </div>
-          <Progress value={(step / 6) * 100} className="h-2" />
-        </div>
-      </FadeIn>
-      <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
-        <Card><CardContent className="p-6">
-          {step === 1 && <div><h2 className="text-xl font-bold mb-4">Step 1: Select Gear Type</h2><Label>Gear Type</Label>
-            <Select value={gearType} onValueChange={setGearType}><SelectTrigger className="w-full mt-1"><SelectValue placeholder="Choose..." /></SelectTrigger><SelectContent>{GEAR_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
-          </div>}
-          {step === 2 && <div><h2 className="text-xl font-bold mb-4">Step 2: {gearType} Specifications</h2>
-            <div className="grid md:grid-cols-2 gap-4">{specFields.map(f => (
-              <div key={f.key} className={f.type === 'textarea' ? 'md:col-span-2' : ''}><Label>{f.label}</Label>
-                {f.type === 'select' ? <Select value={specs[f.key] || ''} onValueChange={v => setSpecs({ ...specs, [f.key]: v })}><SelectTrigger className="mt-1"><SelectValue placeholder="Select..." /></SelectTrigger><SelectContent>{f.options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select>
-                : f.type === 'textarea' ? <Textarea className="mt-1" value={specs[f.key] || ''} onChange={e => setSpecs({ ...specs, [f.key]: e.target.value })} />
-                : <Input className="mt-1" value={specs[f.key] || ''} onChange={e => setSpecs({ ...specs, [f.key]: e.target.value })} />}
-              </div>
-            ))}</div>
-          </div>}
-          {step === 3 && <div><h2 className="text-xl font-bold mb-4">Step 3: General & Manufacturing</h2>
-            <div className="grid md:grid-cols-2 gap-4">{[
-              ['partName','Part Name'],['partNumber','Part Number'],['quantity','Quantity'],['material','Material'],
-              ['heatTreatment','Heat Treatment'],['hardness','Hardness (HRC)'],['drawingNumber','Drawing Number'],['revision','Revision'],
-              ['deliveryDate','Required Delivery Date','date'],['application','Application'],['annualQuantity','Annual Quantity']
-            ].map(([k, l, t]) => <div key={k}><Label>{l}</Label><Input type={t || 'text'} className="mt-1" value={general[k] || ''} onChange={e => setGeneral({ ...general, [k]: e.target.value })} /></div>)}
-              <div><Label>Prototype or Production</Label>
-                <Select value={general.protoOrProd || ''} onValueChange={v => setGeneral({ ...general, protoOrProd: v })}><SelectTrigger className="mt-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Prototype">Prototype</SelectItem><SelectItem value="Production">Production</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select>
-              </div>
-              <div className="md:col-span-2"><Label>Notes</Label><Textarea className="mt-1" value={notes} onChange={e => setNotes(e.target.value)} /></div>
+          <div className="mb-12">
+            <div className="flex gap-1.5 mb-4" aria-hidden>
+              {steps.map((s, i) => (
+                <div key={s} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${i + 1 <= step ? '' : 'bg-slate-200'}`}
+                  style={i + 1 <= step ? { background: 'linear-gradient(90deg,#ffd23f,#ff8a1e 55%,#ff4d00)' } : {}} />
+              ))}
             </div>
-          </div>}
-          {step === 4 && <div><h2 className="text-xl font-bold mb-4">Step 4: Upload Drawings</h2>
-            <label className="block border-2 border-dashed border-slate-300 rounded-xl p-10 text-center cursor-pointer hover:border-amber-500 hover:bg-amber-50/50 transition">
-              <Upload className="h-10 w-10 text-slate-400 mx-auto mb-2" />
-              <div className="font-semibold text-slate-900">Click to upload</div>
-              <div className="text-sm text-slate-500">PDF, STEP, STP, DXF, DWG, JPG, PNG</div>
-              <div className="text-xs text-slate-500">Up to five files, 2.5 MB combined</div>
-              <input type="file" multiple className="hidden" accept=".pdf,.step,.stp,.dxf,.dwg,.jpg,.jpeg,.png" onChange={handleFiles} />
-            </label>
-            {files.length > 0 && <div className="mt-4 space-y-2">{files.map((f, i) => (
-              <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded border">
-                <div className="flex items-center gap-3 min-w-0"><FileText className="h-5 w-5 text-amber-500 shrink-0" /><div className="min-w-0"><div className="font-medium truncate">{f.name}</div><div className="text-xs text-slate-500">{(f.size / 1024).toFixed(1)} KB</div></div></div>
-                <Button size="sm" variant="ghost" onClick={() => setFiles(prev => prev.filter((_, x) => x !== i))}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-              </div>
-            ))}</div>}
-          </div>}
-          {step === 5 && <div><h2 className="text-xl font-bold mb-4">Step 5: Contact Information</h2>
-            <div className="grid md:grid-cols-2 gap-4">{[
-              ['companyName','Company'],['firstName','First Name *'],['lastName','Last Name *'],['email','Email *','email'],
-              ['phone','Phone','tel'],['country','Country'],['address','Address'],['city','City'],['state','State'],['zip','Zip Code']
-            ].map(([k, l, t]) => <div key={k}><Label>{l}</Label><Input type={t || 'text'} className="mt-1" value={customer[k] || ''} onChange={e => setCustomer({ ...customer, [k]: e.target.value })} /></div>)}</div>
-          </div>}
-          {step === 6 && <div><h2 className="text-xl font-bold mb-4">Step 6: Review & Submit</h2><div className="space-y-4 text-sm">
-            <div className="border rounded-lg p-4"><div className="font-semibold mb-2">Customer</div>{customer.firstName} {customer.lastName} — {customer.companyName}<div className="text-slate-600">{customer.email} · {customer.phone}</div></div>
-            <div className="border rounded-lg p-4"><div className="font-semibold mb-2">Gear</div>{gearType}</div>
-            <div className="border rounded-lg p-4"><div className="font-semibold mb-2">Specifications</div><div className="grid grid-cols-2 gap-x-6 gap-y-1">{Object.entries(specs).filter(([, v]) => v).map(([k, v]) => <div key={k}><span className="text-slate-500">{specFields.find(f => f.key === k)?.label || k}:</span> {v}</div>)}</div></div>
-            <div className="border rounded-lg p-4"><div className="font-semibold mb-2">General</div>{Object.entries(general).filter(([, v]) => v).map(([k, v]) => <div key={k}><span className="text-slate-500">{k}:</span> {v}</div>)}</div>
-            <div className="border rounded-lg p-4"><div className="font-semibold mb-2">Drawings ({files.length})</div>{files.length ? <ul className="list-disc list-inside">{files.map((f, i) => <li key={i}>{f.name}</li>)}</ul> : <div className="text-slate-500">None</div>}</div>
-          </div></div>}
-        </CardContent></Card>
-      </motion.div>
-      <div className="flex justify-between mt-5">
-        <Button variant="outline" onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className="rounded-full"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button>
-        {step < 6
-          ? <Button onClick={() => setStep(step + 1)} disabled={!canNext()} className="bg-slate-900 hover:bg-slate-800 rounded-full">Next <ArrowRight className="h-4 w-4 ml-1" /></Button>
-          : <Button onClick={submit} disabled={submitting} className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-full">{submitting ? 'Submitting...' : 'Submit RFQ'} <Send className="h-4 w-4 ml-1" /></Button>}
+            <div className="flex justify-between gap-1">
+              {steps.map((s, i) => (
+                <div key={s} className={`font-tech text-[10px] uppercase tracking-[0.12em] text-center flex-1 ${i + 1 === step ? 'text-slate-900 font-bold' : i + 1 < step ? 'text-amber-600' : 'text-slate-400'} ${i + 1 !== step ? 'hidden sm:block' : ''}`}>{i + 1}. {s}</div>
+              ))}
+            </div>
+          </div>
+        </FadeIn>
+        <motion.div key={step} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}>
+          <Card className="border-0 shadow-[0_24px_70px_-24px_rgba(0,0,0,0.18)] rounded-[1.75rem] overflow-hidden">
+            <CardContent className="p-8 md:p-12">
+              <div className="font-tech text-[11px] uppercase tracking-[0.3em] text-amber-600 mb-3">Step {step} of 6</div>
+              <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-slate-900 mb-2">{stepTitles[step - 1]}</h2>
+              <p className="text-slate-500 font-light mb-8">{stepSubs[step - 1]}</p>
+              {step === 1 && <div><Label className="text-slate-900 font-medium">Gear Type</Label>
+                <Select value={gearType} onValueChange={setGearType}><SelectTrigger className="w-full mt-1.5 h-12 rounded-xl"><SelectValue placeholder="Choose..." /></SelectTrigger><SelectContent>{GEAR_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select>
+              </div>}
+              {step === 2 && <div>
+                <div className="grid md:grid-cols-2 gap-4">{specFields.map(f => (
+                  <div key={f.key} className={f.type === 'textarea' ? 'md:col-span-2' : ''}><Label className="text-slate-900 font-medium">{f.label}</Label>
+                    {f.type === 'select' ? <Select value={specs[f.key] || ''} onValueChange={v => setSpecs({ ...specs, [f.key]: v })}><SelectTrigger className="mt-1.5 h-12 rounded-xl"><SelectValue placeholder="Select..." /></SelectTrigger><SelectContent>{f.options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent></Select>
+                    : f.type === 'textarea' ? <Textarea className="mt-1.5 rounded-xl" rows={3} value={specs[f.key] || ''} onChange={e => setSpecs({ ...specs, [f.key]: e.target.value })} />
+                    : <Input className="mt-1.5 h-12 rounded-xl" value={specs[f.key] || ''} onChange={e => setSpecs({ ...specs, [f.key]: e.target.value })} />}
+                  </div>
+                ))}</div>
+              </div>}
+              {step === 3 && <div>
+                <div className="grid md:grid-cols-2 gap-4">{[
+                  ['partName','Part Name'],['partNumber','Part Number'],['quantity','Quantity'],['material','Material'],
+                  ['heatTreatment','Heat Treatment'],['hardness','Hardness (HRC)'],['drawingNumber','Drawing Number'],['revision','Revision'],
+                  ['deliveryDate','Required Delivery Date','date'],['application','Application'],['annualQuantity','Annual Quantity']
+                ].map(([k, l, t]) => <div key={k}><Label className="text-slate-900 font-medium">{l}</Label><Input type={t || 'text'} className="mt-1.5 h-12 rounded-xl" value={general[k] || ''} onChange={e => setGeneral({ ...general, [k]: e.target.value })} /></div>)}
+                  <div><Label className="text-slate-900 font-medium">Prototype or Production</Label>
+                    <Select value={general.protoOrProd || ''} onValueChange={v => setGeneral({ ...general, protoOrProd: v })}><SelectTrigger className="mt-1.5 h-12 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Prototype">Prototype</SelectItem><SelectItem value="Production">Production</SelectItem><SelectItem value="Both">Both</SelectItem></SelectContent></Select>
+                  </div>
+                  <div className="md:col-span-2"><Label className="text-slate-900 font-medium">Notes</Label><Textarea className="mt-1.5 rounded-xl" rows={3} value={notes} onChange={e => setNotes(e.target.value)} /></div>
+                </div>
+              </div>}
+              {step === 4 && <div>
+                <label className="block border-2 border-dashed border-slate-200 rounded-3xl p-12 text-center cursor-pointer hover:border-amber-500 hover:bg-amber-50/40 transition bg-slate-50/60">
+                  <div className="inline-flex bg-white rounded-2xl p-4 shadow-sm mb-4"><Upload className="h-8 w-8 text-amber-500" /></div>
+                  <div className="font-display font-bold text-xl text-slate-900">Click to upload</div>
+                  <div className="text-sm text-slate-500 mt-1">PDF, STEP, STP, DXF, DWG, JPG, PNG</div>
+                  <div className="text-xs text-slate-400 mt-1">Up to five files, 2.5 MB combined</div>
+                  <input type="file" multiple className="hidden" accept=".pdf,.step,.stp,.dxf,.dwg,.jpg,.jpeg,.png" onChange={handleFiles} />
+                </label>
+                {files.length > 0 && <div className="mt-4 space-y-2">{files.map((f, i) => (
+                  <div key={i} className="flex items-center justify-between p-3.5 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="flex items-center gap-3 min-w-0"><div className="bg-amber-100 rounded-xl p-2"><FileText className="h-5 w-5 text-amber-600" /></div><div className="min-w-0"><div className="font-medium truncate text-slate-900">{f.name}</div><div className="text-xs text-slate-500">{(f.size / 1024).toFixed(1)} KB</div></div></div>
+                    <Button size="sm" variant="ghost" onClick={() => setFiles(prev => prev.filter((_, x) => x !== i))}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                  </div>
+                ))}</div>}
+              </div>}
+              {step === 5 && <div>
+                <div className="grid md:grid-cols-2 gap-4">{[
+                  ['companyName','Company'],['firstName','First Name *'],['lastName','Last Name *'],['email','Email *','email'],
+                  ['phone','Phone','tel'],['country','Country'],['address','Address'],['city','City'],['state','State'],['zip','Zip Code']
+                ].map(([k, l, t]) => <div key={k}><Label className="text-slate-900 font-medium">{l}</Label><Input type={t || 'text'} className="mt-1.5 h-12 rounded-xl" value={customer[k] || ''} onChange={e => setCustomer({ ...customer, [k]: e.target.value })} /></div>)}</div>
+              </div>}
+              {step === 6 && <div><div className="space-y-3 text-sm">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5"><div className="font-tech text-[10px] uppercase tracking-[0.24em] text-slate-400 mb-2">Customer</div><div className="font-semibold text-slate-900">{customer.firstName} {customer.lastName} — {customer.companyName}</div><div className="text-slate-600">{customer.email} · {customer.phone}</div></div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5"><div className="font-tech text-[10px] uppercase tracking-[0.24em] text-slate-400 mb-2">Gear</div><div className="font-semibold text-slate-900">{gearType}</div></div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5"><div className="font-tech text-[10px] uppercase tracking-[0.24em] text-slate-400 mb-2">Specifications</div><div className="grid grid-cols-2 gap-x-6 gap-y-1">{Object.entries(specs).filter(([, v]) => v).map(([k, v]) => <div key={k}><span className="text-slate-500">{specFields.find(f => f.key === k)?.label || k}:</span> <span className="text-slate-900">{v}</span></div>)}</div></div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5"><div className="font-tech text-[10px] uppercase tracking-[0.24em] text-slate-400 mb-2">General</div>{Object.entries(general).filter(([, v]) => v).map(([k, v]) => <div key={k}><span className="text-slate-500">{k}:</span> <span className="text-slate-900">{v}</span></div>)}</div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5"><div className="font-tech text-[10px] uppercase tracking-[0.24em] text-slate-400 mb-2">Drawings ({files.length})</div>{files.length ? <ul className="list-disc list-inside text-slate-900">{files.map((f, i) => <li key={i}>{f.name}</li>)}</ul> : <div className="text-slate-500">None</div>}</div>
+              </div></div>}
+            </CardContent></Card>
+        </motion.div>
+        <div className="flex justify-between mt-8">
+          <Button variant="outline" onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className="rounded-full h-12 px-7 bg-white"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Button>
+          {step < 6
+            ? <Button onClick={() => setStep(step + 1)} disabled={!canNext()} className="bg-slate-900 hover:bg-slate-800 rounded-full h-12 px-8 font-semibold">Next <ArrowRight className="h-4 w-4 ml-1" /></Button>
+            : <Button onClick={submit} disabled={submitting} className="btn-molten rounded-full h-12 px-8 font-tech uppercase tracking-[0.18em] text-sm">{submitting ? 'Submitting...' : 'Submit RFQ'} <Send className="h-4 w-4 ml-1" /></Button>}
+        </div>
       </div>
     </div>
   )
@@ -1666,24 +1741,33 @@ function CustomerPortal({ auth, setRoute }) {
 
   return (
     <div className="container mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
-        <div><h1 className="text-4xl font-bold text-slate-900 tracking-tight">Your RFQs & Orders</h1><p className="text-slate-600 text-sm">Signed in as {auth.user.email}</p></div>
+      <div className="flex items-end justify-between mb-10 flex-wrap gap-4">
+        <div>
+          <div className="font-tech text-[11px] uppercase tracking-[0.32em] text-amber-600 mb-3">{'// Customer portal'}</div>
+          <h1 className="font-display text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">Your RFQs & Orders</h1>
+          <p className="text-slate-500 mt-2">Signed in as {auth.user.email}</p>
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={load} className="rounded-full"><RefreshCw className="h-4 w-4 mr-1" /> Refresh</Button>
           <Button onClick={() => setRoute('rfq')} className="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold rounded-full">New RFQ</Button>
         </div>
       </div>
       <CompanyOrders auth={auth} />
-      <h2 className="text-2xl font-bold mb-4">Your individual RFQs</h2>
+      <h2 className="font-display text-2xl font-bold mb-4 tracking-tight text-slate-900">Your individual RFQs</h2>
       <ListPager list={rfqList} label="Your RFQs" />
       {loadError && <p role="alert" className="mb-4 text-red-700">{loadError}. Use Refresh to try again.</p>}
       {loading && !rfqs.length ? <div role="status">Loading...</div> : rfqs.length === 0 && !loadError ? (
-        <Card><CardContent className="p-16 text-center text-slate-500">No RFQs yet. <button onClick={() => setRoute('rfq')} className="text-amber-600 font-semibold">Submit your first RFQ</button></CardContent></Card>
+        <Card className="rounded-3xl border-dashed border-2"><CardContent className="p-16 text-center">
+          <div className="inline-flex bg-amber-100 text-amber-600 rounded-2xl p-4 mb-4"><ClipboardList className="h-8 w-8" /></div>
+          <div className="font-display text-2xl font-bold text-slate-900 mb-2">No RFQs yet</div>
+          <p className="text-slate-500 mb-6">Tell us what you need cut — it takes about two minutes.</p>
+          <Button onClick={() => setRoute('rfq')} className="btn-molten rounded-full h-11 px-7 font-tech uppercase tracking-[0.18em] text-xs">Submit your first RFQ</Button>
+        </CardContent></Card>
       ) : (
         <motion.div initial="hidden" animate="visible" variants={stagger} className="grid gap-3">
           {rfqs.map(r => (
             <motion.div key={r.id} variants={fadeUp}>
-              <Card className="cursor-pointer hover:border-amber-500 hover:shadow-md transition" onClick={() => setSelected(r)}>
+              <Card className="cursor-pointer rounded-2xl border-slate-200/80 hover:border-amber-400 hover:shadow-[0_18px_45px_-18px_rgba(0,0,0,0.18)] transition-all" onClick={() => setSelected(r)}>
                 <CardContent className="p-5">
                   <div className="grid md:grid-cols-6 gap-3 items-center mb-3">
                     <div className="md:col-span-2"><div className="font-bold text-slate-900">{r.rfqNumber}</div><div className="text-sm text-slate-600">{r.general?.partName || 'Untitled part'}</div></div>
@@ -1757,7 +1841,7 @@ function RfqDetailDialog({ rfq, onClose, onUpdated, auth, asAdmin, cms }) {
 
   return (
     <Dialog open={!!current} onOpenChange={o => !o && onClose()}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto rounded-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3 flex-wrap">
             <span>{current.rfqNumber}</span>
@@ -1969,8 +2053,11 @@ function AdminDashboard({ auth, cms, reloadCms }) {
 
   return (
     <div className="container mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Admin Dashboard</h1>
+      <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
+        <div>
+          <div className="font-tech text-[11px] uppercase tracking-[0.32em] text-amber-600 mb-3">{'// Admin console'}</div>
+          <h1 className="font-display text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">Admin Dashboard</h1>
+        </div>
         <Button variant="outline" onClick={load} className="rounded-full"><RefreshCw className="h-4 w-4 mr-1" /> Refresh</Button>
       </div>
 
@@ -1984,7 +2071,7 @@ function AdminDashboard({ auth, cms, reloadCms }) {
               ['Quotes Sent', stats.quotesSent, Send], ['In Production', stats.inProduction, Factory],
               ['Total Value', '$' + (stats.totalValue || 0).toLocaleString(), Award]
             ].map(([l, v, Icon]) => (
-              <motion.div key={l} variants={fadeUp}><Card className="hover:border-amber-500 transition"><CardContent className="p-4">
+              <motion.div key={l} variants={fadeUp}><Card className="rounded-2xl hover:border-amber-400 hover:shadow-[0_14px_35px_-16px_rgba(0,0,0,0.2)] transition-all"><CardContent className="p-5">
                 <div className="flex items-center justify-between mb-1"><div className="text-xs text-slate-500 uppercase">{l}</div><Icon className="h-4 w-4 text-amber-500" /></div>
                 <div className="text-2xl font-bold text-slate-900">{v}</div>
               </CardContent></Card></motion.div>
@@ -2013,7 +2100,7 @@ function AdminDashboard({ auth, cms, reloadCms }) {
           </div>
           <motion.div initial="hidden" animate="visible" variants={stagger} className="grid gap-3">
             {filtered.map(r => (
-              <motion.div key={r.id} variants={fadeUp}><Card className="cursor-pointer hover:border-amber-500 transition" onClick={() => setSelected(r)}>
+              <motion.div key={r.id} variants={fadeUp}><Card className="cursor-pointer rounded-2xl hover:border-amber-400 hover:shadow-[0_14px_35px_-16px_rgba(0,0,0,0.18)] transition-all" onClick={() => setSelected(r)}>
                 <CardContent className="p-4 grid md:grid-cols-7 gap-2 items-center">
                   <div className="md:col-span-2"><div className="font-bold text-slate-900">{r.rfqNumber}</div><div className="text-xs text-slate-600">{r.customer?.companyName} — {r.customer?.firstName} {r.customer?.lastName}</div></div>
                   <div className="text-sm">{r.gearType}</div>
