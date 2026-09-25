@@ -18,6 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { toast } from 'sonner'
 import { ManagerManagement, CompanyManagement } from '@/components/management-panels'
 import { CompanyOrders, CompanyInvitation } from '@/components/company-orders'
+import { createPortal } from 'react-dom'
+import { KineticGlide, WebGLStage, Cursor, Grain, KineticEnhancer, BootPreloader, kineticState } from './components/kinetic'
 const isStaff = user => ['owner', 'manager'].includes(user?.role)
 import {
   Cog, Wrench, Factory, Ruler, ShieldCheck, Upload, FileText, Trash2, ArrowRight, ArrowLeft,
@@ -409,32 +411,7 @@ function ScrollProgress() {
 }
 
 function Preloader({ onDone }) {
-  const [n, setN] = useState(0)
-  const bootLines = ['> SERVO LINK ............ OK', '> SPINDLE ARRAY ......... OK', '> CMM MODULE ............ OK', '> CALIBRATING ........... ']
-  useEffect(() => {
-    const t0 = performance.now()
-    let raf
-    const tick = (t) => {
-      const p = Math.min(1, (t - t0) / 1500)
-      setN(Math.round(p * 100))
-      if (p < 1) raf = requestAnimationFrame(tick)
-      else setTimeout(onDone, 300)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [onDone])
-  return (
-    <motion.div exit={{ y: '-100%' }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed inset-0 z-[200] bg-[#04070b] flex flex-col items-center justify-center px-6">
-      <Gear teeth={12} size={88} seconds={5} className="mb-6" />
-      <div className="font-tech text-[11px] uppercase tracking-[0.42em] text-[#22d3ee] mb-5">{'// VEW.SYS — boot sequence'}</div>
-      <div className="font-display text-7xl md:text-8xl font-bold text-[#eef3f6] tracking-tight">{n}<span className="text-servo">%</span></div>
-      <div className="w-60 h-[3px] bg-white/10 mt-7 overflow-hidden rounded-full">
-        <div className="h-full bg-gradient-to-r from-[#a5f3fc] via-[#22d3ee] to-[#0e7490]" style={{ width: `${n}%` }} />
-      </div>
-      <pre className="font-tech text-[10px] uppercase tracking-[0.18em] text-[#8b98a5] mt-6 h-20 text-left whitespace-pre-wrap">{bootLines.slice(0, 1 + Math.floor(n / 28)).join('\n')}<span className="terminal-caret">▊</span></pre>
-    </motion.div>
-  )
+  return <BootPreloader onDone={onDone} />
 }
 
 function CapRow({ c, i }) {
@@ -559,7 +536,7 @@ function Footer({ setRoute, cms }) {
 }
 
 // ============== HOME (Apple-style animations) ==============
-function HomePage({ setRoute, cms }) {
+function HomePage({ setRoute, cms, booted }) {
   const heroRef = useRef(null)
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
   const heroY = useTransform(scrollYProgress, [0, 1], [0, 200])
@@ -577,30 +554,30 @@ function HomePage({ setRoute, cms }) {
         <GridBg />
         <Orbs />
         <Noise />
+        <WebGLStage />
         <div className="relative container mx-auto px-4 pt-28 pb-14 lg:pt-36 lg:pb-20 grid lg:grid-cols-12 gap-14 items-center">
           <motion.div style={{ opacity: heroOpacity }} className="lg:col-span-7">
-            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
+            <motion.div initial={{ opacity: 0, y: 24 }} animate={booted ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
               <div className="font-tech text-[11px] uppercase tracking-[0.42em] text-[#22d3ee] mb-7">// Servo-driven gear manufacturing</div>
             </motion.div>
-            <motion.h1 initial={{ opacity: 0, y: 34 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-              className="font-display font-bold tracking-[-0.02em] leading-[0.9] text-[clamp(3.4rem,8.5vw,7.2rem)] mb-7">
+            <h1 className="k-chars font-display font-bold tracking-[-0.02em] leading-[0.9] text-[clamp(3.4rem,8.5vw,7.2rem)] mb-7">
               WE CUT<br />
               <span className="text-servo drop-shadow-[0_0_45px_rgba(34,211,238,0.35)]">PRECISION</span><br />
               <span className="text-stroke">INTO STEEL</span>
-            </motion.h1>
-            <motion.p initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.26 }}
+            </h1>
+            <motion.p initial={{ opacity: 0, y: 24 }} animate={booted ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.9, delay: 0.26 }}
               className="text-lg md:text-xl text-[#8b98a5] max-w-xl font-light leading-relaxed mb-9">
               Spiral bevel, helical and spur gears — plus complete gear sets — machined from your drawings to <span className="text-[#eef3f6] font-normal">±0.002&nbsp;mm</span> and inspected to AGMA Q12.
             </motion.p>
-            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.38 }} className="flex flex-wrap gap-4 mb-12">
+            <motion.div initial={{ opacity: 0, y: 24 }} animate={booted ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.9, delay: 0.38 }} className="flex flex-wrap gap-4 mb-12">
               <Button size="lg" onClick={() => setRoute('rfq')} className="btn-servo font-tech uppercase tracking-[0.18em] text-sm h-14 px-10 rounded-full">
                 Request a Quote <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-              <Button size="lg" variant="outline" onClick={() => setRoute('gallery')} className="border-white/25 text-white hover:bg-white hover:text-black bg-white/5 backdrop-blur-sm h-14 px-10 text-sm rounded-full font-tech uppercase tracking-[0.18em]">
+              <Button size="lg" variant="outline" data-magnetic onClick={() => setRoute('gallery')} className="border-white/25 text-white hover:bg-white hover:text-black bg-white/5 backdrop-blur-sm h-14 px-10 text-sm rounded-full font-tech uppercase tracking-[0.18em]">
                 See the shop
               </Button>
             </motion.div>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1, delay: 0.55 }}
+            <motion.div initial={{ opacity: 0 }} animate={booted ? { opacity: 1 } : {}} transition={{ duration: 1, delay: 0.55 }}
               className="grid grid-cols-3 max-w-lg border-y border-white/10 divide-x divide-white/10">
               {[['30+', 'Years cutting'], ['Q12', 'AGMA grade'], ['1200', 'mm max OD']].map(([v, l]) => (
                 <div key={l} className="px-5 py-4 first:pl-0">
@@ -610,7 +587,7 @@ function HomePage({ setRoute, cms }) {
               ))}
             </motion.div>
           </motion.div>
-          <motion.div initial={{ opacity: 0, scale: 0.96, y: 30 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 1.1, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          <motion.div initial={{ opacity: 0, scale: 0.96, y: 30 }} animate={booted ? { opacity: 1, scale: 1, y: 0 } : {}} transition={{ duration: 1.1, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="lg:col-span-5 relative hidden lg:block">
             <div className="hud-frame relative rounded-2xl bg-[#080d13]/85 border border-cyan-400/20 overflow-hidden shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)]">
               <Scanline />
@@ -1083,7 +1060,7 @@ function GalleryPage() {
         ))}
       </motion.div>
       <AnimatePresence>
-        {active && (
+        {active && createPortal((
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setLightbox(null)}
             className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
             <button aria-label="Close" onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition">
@@ -1102,7 +1079,7 @@ function GalleryPage() {
               {active.caption} · {lightbox + 1} of {GALLERY.length}
             </div>
           </motion.div>
-        )}
+        ), document.body)}
       </AnimatePresence>
     </div>
     </div>
@@ -2274,6 +2251,7 @@ function App() {
 
   useEffect(() => {
     window.scrollTo(0, 0)
+    kineticState.smooth = 0; kineticState.raw = 0; kineticState.vel = 0
     setMobileOpen(false)
     const title = route.startsWith('product:') ? PRODUCTS.find(p => p.key === route.slice(8))?.title : pageTitles[route]
     document.title = `${title || 'Page not found'} | Vijaya Engineering Works`
@@ -2310,7 +2288,7 @@ function App() {
   let content
   if (route === 'admin' && !isStaff(auth.user)) content = <LoginPage setRoute={goRoute} auth={auth} />
   else if (route === 'invite' && authAction?.type === 'invite') content = <CompanyInvitation token={authAction.token} auth={auth} onDone={() => { clearAuthAction(); setRoute('portal') }} onSignIn={() => { clearAuthAction(); setRoute('login') }} />
-  else if (route === 'home') content = <HomePage setRoute={goRoute} cms={cms} />
+  else if (route === 'home') content = <HomePage setRoute={goRoute} cms={cms} booted={booted} />
   else if (route === 'products') content = <ProductsPage setRoute={goRoute} cms={cms} />
   else if (route.startsWith('product:')) content = <ProductDetail productKey={route.slice(8)} setRoute={goRoute} cms={cms} />
   else if (route === 'capabilities') content = <CapabilitiesPage />
@@ -2321,18 +2299,23 @@ function App() {
   else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} authAction={authAction} clearAuthAction={clearAuthAction} />
   else if (route === 'portal') content = <CustomerPortal auth={auth} setRoute={goRoute} />
   else if (route === 'admin') content = <AdminDashboard auth={auth} cms={cms} reloadCms={loadCms} />
-  else content = <HomePage setRoute={goRoute} cms={cms} />
+  else content = <HomePage setRoute={goRoute} cms={cms} booted={booted} />
 
   return (
     <MotionConfig reducedMotion="user"><div className="min-h-screen flex flex-col">
-      <AnimatePresence>{!booted && <Preloader key="boot" onDone={() => setBooted(true)} />}</AnimatePresence>
+      <AnimatePresence>{!booted && <Preloader key="boot" onDone={() => { setBooted(true); kineticState.booted = true; window.dispatchEvent(new Event('vew:booted')) }} />}</AnimatePresence>
       <ScrollProgress />
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:p-3">Skip to content</a>
+      <KineticGlide key={route}>
       <Nav route={route.split(':')[0]} setRoute={goRoute} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={auth.user} onLogout={() => setSignoutOpen(true)} />
       <ImpersonationBanner user={auth.user} onExit={async () => { try { await auth.exitImpersonation(); setRoute('admin'); toast.success('Exited override — back to admin') } catch (error) { toast.error(error.message) } }} />
       <main id="main-content" className="flex-1 min-w-0" tabIndex={-1}>{content}</main>
       {cmsError && <div role="alert" className="mx-auto max-w-xl px-4 py-4 text-sm text-red-700">Some business details could not be loaded. <button className="underline" onClick={loadCms}>Try again</button></div>}
       <Footer setRoute={goRoute} cms={cms} />
+      </KineticGlide>
+      <Cursor />
+      <Grain />
+      <KineticEnhancer route={route} />
 
       <Dialog open={signoutOpen} onOpenChange={setSignoutOpen}>
         <DialogContent className="max-w-sm">
@@ -2354,3 +2337,4 @@ function App() {
 }
 
 export default App
+
