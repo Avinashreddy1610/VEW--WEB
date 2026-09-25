@@ -25,42 +25,32 @@ if (typeof window !== 'undefined') {
 export const MARKETING_BASES = ['home', 'product', 'products', 'capabilities', 'gallery', 'about', 'contact']
 export const isMarketingRoute = r => MARKETING_BASES.includes(String(r).split(':')[0])
 
-export function KineticGlide({ children, route }) {
-  const ref = useRef(null)
+// v6.1: native scroll (no hijack) — repainting the whole page inside a
+// lerped transform every frame was the main source of input lag. This wrapper
+// now only tracks scroll velocity (passive listener) for the
+// velocity-sensitive marquee.
+export function KineticGlide({ children }) {
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    kineticState.raw = window.scrollY
-    kineticState.smooth = window.scrollY
-    kineticState.vel = 0
-    el.style.transform = ''
     if (kineticState.reduced) return
-    const lerp = kineticState.touch ? 0.16 : 0.11
-    let raf = 0
-    const freezeCheck = () => {
-      const dialogOpen = !!document.querySelector('[role="dialog"], [data-k-freeze]')
-      const bodyLocked = document.body.style.overflow === 'hidden'
-      kineticState.frozen = dialogOpen || bodyLocked
+    let last = window.scrollY, vel = 0, raf = 0
+    const tick = () => {
+      raf = 0
+      vel *= 0.9
+      kineticState.vel = vel
+      if (Math.abs(vel) > 0.05) raf = requestAnimationFrame(tick)
+      else kineticState.vel = 0
     }
-    freezeCheck()
-    const mo = new MutationObserver(freezeCheck)
-    mo.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'], childList: true, subtree: false })
-    const loop = () => {
-      raf = requestAnimationFrame(loop)
-      if (kineticState.frozen || document.hidden) return
-      const target = window.scrollY
-      const prev = kineticState.smooth
-      const next = prev + (target - prev) * lerp
-      kineticState.raw = target
-      kineticState.smooth = Math.abs(target - next) < 0.05 ? target : next
-      kineticState.vel = kineticState.smooth - prev
-      const t = kineticState.raw - kineticState.smooth
-      el.style.transform = t === 0 ? '' : `translate3d(0,${t.toFixed(2)}px,0)`
+    const onScroll = () => {
+      const y = window.scrollY
+      vel = vel * 0.8 + (y - last) * 0.2
+      last = y
+      kineticState.vel = vel
+      if (!raf) raf = requestAnimationFrame(tick)
     }
-    raf = requestAnimationFrame(loop)
-    return () => { cancelAnimationFrame(raf); mo.disconnect(); el.style.transform = '' }
-  }, [route])
-  return <div ref={ref} style={{ willChange: 'transform' }}>{children}</div>
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => { window.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf) }
+  }, [])
+  return <>{children}</>
 }
 
 export function Cursor() {
@@ -184,8 +174,8 @@ export function WebGLStage() {
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { mount.removeChild(canvas); return }
     gl.useProgram(prog)
     const touch = kineticState.touch
-    const RING_N = touch ? 5200 : 13500
-    const DUST_N = touch ? 900 : 2600
+    const RING_N = touch ? 3600 : 8000
+    const DUST_N = touch ? 700 : 1500
     const rings = [
       { r: 3.4, teeth: 22, speed: 0.055, w: 0.55 },
       { r: 5.3, teeth: 30, speed: -0.038, w: 0.7 },
@@ -234,7 +224,7 @@ export function WebGLStage() {
     let W = 0, H = 0
     const resize = () => {
       const w = mount.clientWidth || 1, h = mount.clientHeight || 1
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.75)
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
       W = Math.floor(w * dpr); H = Math.floor(h * dpr)
       canvas.width = W; canvas.height = H
       canvas.style.width = w + 'px'; canvas.style.height = h + 'px'
@@ -404,9 +394,13 @@ export function KineticEnhancer({ route }) {
     const strokes = Array.from(root.querySelectorAll('.text-stroke,.text-stroke-cyan,.text-stroke-faint'))
     const marquees = Array.from(root.querySelectorAll('.animate-vew-marquee'))
     const parallax = Array.from(root.querySelectorAll('[data-parallax]'))
+    let lastY = window.scrollY
     const loop = () => {
       rafHandles.loop = requestAnimationFrame(loop)
       if (kineticState.frozen || document.hidden) return
+      const y = window.scrollY
+      if (y === lastY) return
+      lastY = y
       const vh = window.innerHeight
       for (const el of strokes) {
         const r = el.getBoundingClientRect()
