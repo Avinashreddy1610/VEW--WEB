@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import ResponsiveImage from '@/components/responsive-image'
 import { apiFetch as fetch } from '@/lib/client-http.mjs'
 import { cleanContact, pageTitles } from '@/lib/site-content.mjs'
 import { ListPager, usePagedList } from '@/components/paged-list'
@@ -212,26 +211,7 @@ function FadeIn({ children, className = '', delay = 0 }) {
     variants={{ hidden: { opacity: 0, y: 40 }, visible: { opacity: 1, y: 0, transition: { duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] } } }}>{children}</motion.div>
 }
 
-// ============== GEAR LOGO ==============
-function GearLogo({ className = 'h-8 w-8', spin = false }) {
-  return <motion.div animate={spin ? { rotate: 360 } : {}} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}>
-    <Cog className={className + ' text-cyan-500'} strokeWidth={2.2} />
-  </motion.div>
-}
-
 // ============== SHARED UI PRIMITIVES ==============
-function Orbs() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <motion.div animate={{ x: [0, 50, 0], y: [0, -30, 0] }} transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -top-40 -left-32 h-[520px] w-[520px] rounded-full bg-[#22d3ee]/[0.13] blur-[140px]" />
-      <motion.div animate={{ x: [0, -60, 0], y: [0, 40, 0] }} transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute top-1/4 -right-48 h-[620px] w-[620px] rounded-full bg-[#67e8f9]/[0.09] blur-[160px]" />
-      <motion.div animate={{ x: [0, 30, 0], y: [0, 30, 0] }} transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -bottom-40 left-1/3 h-[460px] w-[460px] rounded-full bg-[#0e7490]/[0.09] blur-[120px]" />
-    </div>
-  )
-}
 
 // ============== APP-LEVEL CHROME ==============
 
@@ -829,56 +809,18 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] grid lg:grid-cols-[1.05fr_1fr] bg-[#06090d]">
-      {/* ============ BRAND PANEL ============ */}
-      <div className="relative hidden lg:flex flex-col justify-between overflow-hidden p-12 xl:p-16 text-white">
-        <div className="absolute inset-0">
-          <ResponsiveImage src={HERO_IMG} alt="" className="w-full h-full object-cover opacity-25" />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#06090d]/85 via-[#06090d]/92 to-[#06090d]" />
-        </div>
-        <div className="absolute inset-0"><Orbs /></div>
-        <div className="relative flex items-center gap-3">
-          <GearLogo className="h-10 w-10" spin />
-          <div>
-            <div className="font-display font-bold text-lg tracking-tight">Vijaya Engineering Works</div>
-            <div className="font-tech text-[10px] uppercase tracking-[0.3em] text-[#67e8f9]">VEW · Precision Gears</div>
+    <div className="bg-white text-neutral-900 min-h-[calc(100vh-4rem)]">
+      <div className="container mx-auto px-4 py-14 md:py-20 flex justify-center">
+        <div className="w-full max-w-md">
+          <div className="flex items-center gap-2.5 mb-10">
+            <Cog className="h-9 w-9 text-neutral-900" />
+            <div className="font-display font-bold text-neutral-900 tracking-tight">Vijaya Engineering Works</div>
           </div>
-        </div>
-        <div className="relative">
-          <div className="font-tech text-[11px] uppercase tracking-[0.42em] text-[#22d3ee] mb-6">{'// Customer portal'}</div>
-          <h2 className="font-display text-5xl xl:text-6xl font-bold tracking-tight leading-[1.02] mb-6">
-            Every gear.<br />
-            <span className="text-servo">Every stage.</span><br />
-            <span className="text-stroke">Live.</span>
-          </h2>
-          <p className="text-[#8b98a5] text-lg font-light max-w-md leading-relaxed">
-            Submit RFQs, approve quotes, and watch your gears move through ten production stages — in real time.
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">
+            {mode === 'signup' ? 'Create account' : mode === 'login' ? 'Welcome back' : 'Account access'}
           </p>
-          <div className="grid grid-cols-3 gap-6 mt-12 max-w-md border-t border-white/10 pt-8">
-            {[['30+', 'Years cutting'], ['Q12', 'AGMA grade'], ['±0.002', 'mm tolerance']].map(([v, l]) => (
-              <div key={l}>
-                <div className="font-display text-3xl font-bold text-[#eef3f6]">{v}</div>
-                <div className="font-tech text-[10px] uppercase tracking-[0.22em] text-[#8b98a5] mt-1.5">{l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="relative font-tech text-[10px] uppercase tracking-[0.32em] text-[#8b98a5]">ISO 9001 · AGMA Q12 · 1200 mm max OD</div>
-      </div>
-
-      {/* ============ FORM PANEL ============ */}
-      <div className="relative bg-white flex items-center justify-center px-6 py-12 sm:px-12 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(34,211,238,0.07),transparent)]" />
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="relative w-full max-w-md">
-          <div className="lg:hidden flex items-center gap-2.5 mb-10">
-            <GearLogo className="h-9 w-9" spin />
-            <div className="font-display font-bold text-slate-900 tracking-tight">Vijaya Engineering Works</div>
-          </div>
-          <div className="font-tech text-[11px] uppercase tracking-[0.32em] text-cyan-600 mb-4">
-            {'// '}{mode === 'signup' ? 'Create account' : mode === 'login' ? 'Welcome back' : 'Account access'}
-          </div>
-          <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 mb-3">{titles[mode] || titles.login}</h1>
-          <p className="text-slate-500 mb-8 leading-relaxed">{descriptions[mode] || descriptions.login}</p>
+          <h1 className="font-display text-4xl font-bold tracking-tight text-neutral-900 mb-3">{titles[mode] || titles.login}</h1>
+          <p className="text-neutral-500 mb-8 leading-relaxed">{descriptions[mode] || descriptions.login}</p>
 
           {['login','signup','forgot','reset'].includes(mode) && <form onSubmit={submit} className="space-y-4">
             {mode === 'signup' && <>
@@ -910,36 +852,36 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-slate-900 font-medium">Password{mode === 'signup' && ' *'}</Label>
-                  {mode === 'login' && <button type="button" onClick={() => setMode('forgot')} className="text-xs text-cyan-600 font-semibold hover:underline">Forgot password?</button>}
+                  {mode === 'login' && <button type="button" onClick={() => setMode('forgot')} className="text-xs text-neutral-900 font-semibold hover:underline">Forgot password?</button>}
                 </div>
                 <Input aria-label="Password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? undefined : 8} maxLength={128} type="password" className="mt-1.5 h-12 rounded-xl" placeholder={mode === 'signup' || mode === 'reset' ? 'At least 8 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
               </div>
             )}
             {mode === 'reset' && <div><Label className="text-slate-900 font-medium">Confirm new password</Label><Input aria-label="Confirm new password" autoComplete="new-password" required minLength={8} type="password" className="mt-1.5 h-12 rounded-xl" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} /></div>}
             <div className="pt-2">
-              <Button disabled={loading} type="submit" className="btn-servo w-full h-12 rounded-full font-tech uppercase tracking-[0.18em] text-sm">
+              <Button disabled={loading} type="submit" className="w-full h-12 rounded-full bg-neutral-900 text-white hover:bg-neutral-700">
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : mode === 'reset' ? 'Update Password' : 'Send Reset Instructions'}
               </Button>
             </div>
           </form>}
           {mode === 'verify' && <div className="text-center py-6 space-y-4">
-            {loading && <Loader2 className="h-8 w-8 animate-spin text-cyan-500 mx-auto" />}
-            {!loading && !actionMessage && !actionError && <Button onClick={confirmEmail} className="btn-servo rounded-full">Verify email address</Button>}
-            {actionMessage && <><CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto" /><p className="text-sm text-slate-700">{actionMessage}</p><Button onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full bg-slate-900">Continue to sign in</Button></>}
+            {loading && <Loader2 className="h-8 w-8 animate-spin text-neutral-900 mx-auto" />}
+            {!loading && !actionMessage && !actionError && <Button onClick={confirmEmail} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700">Verify email address</Button>}
+            {actionMessage && <><CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto" /><p className="text-sm text-slate-700">{actionMessage}</p><Button onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700">Continue to sign in</Button></>}
             {actionError && <><p className="text-sm text-red-600">{actionError}</p><Button variant="outline" onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full">Return to sign in</Button></>}
           </div>}
-          {['verification-sent','reset-sent'].includes(mode) && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-cyan-100 text-cyan-600 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">{actionMessage}</p><Button variant="outline" onClick={() => setMode('login')} className="rounded-full">Back to sign in</Button></div>}
-          {mode === 'unverified' && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-cyan-100 text-cyan-600 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">Your account must be verified before you can sign in.</p><Input aria-label="Email to verify" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Your email address" className="h-12 rounded-xl" /><Button disabled={loading} onClick={resendVerification} className="btn-servo rounded-full">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend verification email'}</Button></div>}
+          {['verification-sent','reset-sent'].includes(mode) && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-neutral-100 text-neutral-900 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">{actionMessage}</p><Button variant="outline" onClick={() => setMode('login')} className="rounded-full">Back to sign in</Button></div>}
+          {mode === 'unverified' && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-neutral-100 text-neutral-900 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">Your account must be verified before you can sign in.</p><Input aria-label="Email to verify" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Your email address" className="h-12 rounded-xl" /><Button disabled={loading} onClick={resendVerification} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend verification email'}</Button></div>}
 
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center text-sm text-slate-600 space-y-2.5">
-            {mode === 'login' && <div>New to VEW? <button onClick={() => setMode('signup')} className="text-cyan-600 font-semibold hover:underline">Create an account</button></div>}
-            {mode === 'login' && <div><button onClick={() => setMode('unverified')} className="text-slate-500 hover:text-cyan-600 font-medium">Resend verification email</button></div>}
-            {['unverified','reset'].includes(mode) && <div><button onClick={() => { clearAuthAction?.(); setMode('login') }} className="text-cyan-600 font-semibold hover:underline">Back to sign in</button></div>}
-            {mode === 'signup' && <div>Already have an account? <button onClick={() => setMode('login')} className="text-cyan-600 font-semibold hover:underline">Sign in</button></div>}
-            {mode === 'forgot' && <div><button onClick={() => setMode('login')} className="text-cyan-600 font-semibold hover:underline">← Back to sign in</button></div>}
+          <div className="mt-8 pt-6 border-t border-neutral-200 text-center text-sm text-neutral-600 space-y-2.5">
+            {mode === 'login' && <div>New to VEW? <button onClick={() => setMode('signup')} className="text-neutral-900 font-semibold hover:underline">Create an account</button></div>}
+            {mode === 'login' && <div><button onClick={() => setMode('unverified')} className="text-neutral-500 hover:text-neutral-900 font-medium">Resend verification email</button></div>}
+            {['unverified','reset'].includes(mode) && <div><button onClick={() => { clearAuthAction?.(); setMode('login') }} className="text-neutral-900 font-semibold hover:underline">Back to sign in</button></div>}
+            {mode === 'signup' && <div>Already have an account? <button onClick={() => setMode('login')} className="text-neutral-900 font-semibold hover:underline">Sign in</button></div>}
+            {mode === 'forgot' && <div><button onClick={() => setMode('login')} className="text-neutral-900 font-semibold hover:underline">← Back to sign in</button></div>}
           </div>
-          <div className="text-center text-xs text-slate-400 mt-8">Protected by password hashing (scrypt). Your credentials are never stored in plain text.</div>
-        </motion.div>
+          <div className="text-center text-xs text-neutral-400 mt-8">Protected by password hashing (scrypt). Your credentials are never stored in plain text.</div>
+        </div>
       </div>
 
       {/* Welcome modal */}
@@ -947,12 +889,11 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
         <DialogContent className="max-w-sm text-center rounded-3xl">
           <DialogHeader>
             <div className="mx-auto mb-3">
-              <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                className="inline-flex rounded-full p-4 text-white shadow-[0_10px_40px_-10px_rgba(34,211,238,0.6)]" style={{ background: 'linear-gradient(135deg,#a5f3fc,#22d3ee 50%,#0e7490)' }}>
+              <div className="inline-flex rounded-full p-4 text-white bg-neutral-900">
                 <CheckCircle2 className="h-12 w-12" />
-              </motion.div>
+              </div>
             </div>
-            <div className="font-tech text-[10px] uppercase tracking-[0.3em] text-cyan-600 mb-2">{'// Signed in'}</div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-2">Signed in</p>
             <DialogTitle className="text-center font-display text-3xl tracking-tight">
               {welcome?.isNew ? `Welcome, ${welcome?.name}!` : `Welcome back, ${welcome?.name}!`}
             </DialogTitle>
@@ -962,7 +903,7 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
                 : isStaff(welcome) ? 'Signed in as administrator.' : "You're signed in. Continue to your portal to see all your RFQs and orders."}
             </DialogDescription>
           </DialogHeader>
-          <Button onClick={continueAfterWelcome} className="btn-servo w-full rounded-full h-12 mt-2 font-tech uppercase tracking-[0.18em] text-sm">
+          <Button onClick={continueAfterWelcome} className="w-full rounded-full h-12 mt-2 bg-neutral-900 text-white hover:bg-neutral-700">
             {isStaff(welcome) ? 'Go to Admin Dashboard' : 'Continue to My Portal'} <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </DialogContent>
