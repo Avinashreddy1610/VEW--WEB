@@ -3,6 +3,7 @@ import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
 import { HttpError, text, email, password, hashPassword, signToken, getAuthUser, isStaff, isOwner, safeUser, safeRfq, canReadRfq, rateLimit, ownerEmail } from '@/lib/server/security.mjs'
 import { handleAuth } from '@/lib/server/auth.mjs'
+import { googleAuthUrl, handleGoogleCallback } from '@/lib/server/oauth-google.mjs'
 import { handleManagement } from '@/lib/server/management.mjs'
 import { handleCompanyOrders } from '@/lib/server/company-orders.mjs'
 import { deliverRfqReceipt } from '@/lib/server/business-email.mjs'
@@ -143,6 +144,22 @@ async function dispatchRequest(request, ctx) {
     const route = path.join('/')
 
     if (route === '' || route === 'health') { await db.command({ ping: 1 }, { maxTimeMS: 5000 }); return json({ status: 'ok', service: 'VEW API' }) }
+
+    // Google OAuth sign-in (GET only; the callback sets the session cookie and redirects home).
+    if (route === 'auth/google' && method === 'GET') {
+      return NextResponse.redirect(googleAuthUrl())
+    }
+    if (route === 'auth/google/callback' && method === 'GET') {
+      try {
+        const { token } = await handleGoogleCallback(request, db)
+        const response = NextResponse.redirect(new URL('/', request.url))
+        setSession(response, token)
+        return response
+      } catch (error) {
+        const message = error instanceof HttpError ? error.message : 'Google sign-in failed. Please try again.'
+        return NextResponse.redirect(new URL(`/?oauth_error=${encodeURIComponent(message)}`, request.url))
+      }
+    }
 
     const authentication = await handleAuth(route, request, db)
     if (authentication) {

@@ -822,6 +822,24 @@ function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
           <h1 className="font-display text-4xl font-bold tracking-tight text-neutral-900 mb-3">{titles[mode] || titles.login}</h1>
           <p className="text-neutral-500 mb-8 leading-relaxed">{descriptions[mode] || descriptions.login}</p>
 
+          {['login','signup'].includes(mode) && <div className="mb-6">
+            <button type="button" onClick={() => { window.location.href = '/api/auth/google' }}
+              className="w-full h-12 rounded-full border border-neutral-300 bg-white hover:bg-neutral-50 flex items-center justify-center gap-3 font-medium text-neutral-900">
+              <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
+                <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45c-.28 1.48-1.12 2.73-2.4 3.58v2.97h3.88c2.27-2.09 3.57-5.17 3.57-8.74z" />
+                <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.88-2.97c-1.08.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.71-4.95H1.28v3.07C3.26 21.3 7.31 24 12 24z" />
+                <path fill="#FBBC05" d="M5.29 14.32c-.24-.72-.38-1.49-.38-2.32s.14-1.6.38-2.32V6.61H1.28C.46 8.24 0 10.06 0 12s.46 3.76 1.28 5.39l4.01-3.07z" />
+                <path fill="#EA4335" d="M12 4.73c1.76 0 3.34.61 4.58 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.28 6.61l4.01 3.07c.94-2.84 3.59-4.95 6.71-4.95z" />
+              </svg>
+              Continue with Google
+            </button>
+            <div className="flex items-center gap-4 my-6">
+              <div className="flex-1 border-t border-neutral-200" />
+              <span className="text-xs uppercase tracking-[0.18em] text-neutral-400">or with email</span>
+              <div className="flex-1 border-t border-neutral-200" />
+            </div>
+          </div>}
+
           {['login','signup','forgot','reset'].includes(mode) && <form onSubmit={submit} className="space-y-4">
             {mode === 'signup' && <>
               <div className="grid grid-cols-2 gap-3">
@@ -1786,10 +1804,12 @@ function App() {
     const verifyToken = params.get('verify')
     const resetToken = params.get('reset')
     const inviteToken = params.get('invite')
-    if (verifyToken || resetToken || inviteToken) window.history.replaceState({}, '', window.location.pathname)
+    const oauthError = params.get('oauth_error')
+    if (verifyToken || resetToken || inviteToken || oauthError) window.history.replaceState({}, '', window.location.pathname)
     if (verifyToken) { setAuthAction({ type: 'verify', token: verifyToken }); setRoute('login') }
     else if (resetToken) { setAuthAction({ type: 'reset', token: resetToken }); setRoute('login') }
     else if (inviteToken) { setAuthAction({ type: 'invite', token: inviteToken }); setRoute('invite') }
+    else if (oauthError) { toast.error(oauthError); setRoute('login') }
   }, [])
 
   const clearAuthAction = () => {
