@@ -19,7 +19,7 @@ import { toast } from 'sonner'
 import { ManagerManagement, CompanyManagement } from '@/components/management-panels'
 import { CompanyOrders, CompanyInvitation } from '@/components/company-orders'
 import { createPortal } from 'react-dom'
-import { KineticGlide, WebGLStage, Cursor, Grain, KineticEnhancer, BootPreloader, kineticState } from './components/kinetic'
+import Image from 'next/image'
 const isStaff = user => ['owner', 'manager'].includes(user?.role)
 import {
   Cog, Wrench, Factory, Ruler, ShieldCheck, Upload, FileText, Trash2, ArrowRight, ArrowLeft,
@@ -410,10 +410,6 @@ function ScrollProgress() {
   return <motion.div style={{ scaleX: scrollYProgress }} className="fixed top-0 left-0 right-0 h-[3px] z-[120] origin-left bg-gradient-to-r from-[#a5f3fc] via-[#22d3ee] to-[#0e7490]" />
 }
 
-function Preloader({ onDone }) {
-  return <BootPreloader onDone={onDone} />
-}
-
 function CapRow({ c, i }) {
   const [open, setOpen] = useState(false)
   const Icon = c.icon
@@ -444,388 +440,203 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
     { key: 'about', label: 'About' }, { key: 'contact', label: 'Contact' },
   ]
   return (
-    <motion.header initial={{ y: -60 }} animate={{ y: 0 }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-      className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-xl border-b border-slate-800/60">
+    <header className="sticky top-0 z-40 bg-white border-b border-neutral-200">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <button onClick={() => setRoute('home')} className="flex items-center gap-2">
-          <GearLogo spin />
-          <div className="text-white text-left">
-            <div className="font-bold tracking-tight leading-none">Vijaya Engineering Works</div>
-            <div className="text-[10px] uppercase tracking-widest text-cyan-400 leading-none mt-0.5">VEW · Precision Gears</div>
-          </div>
+          <Cog className="h-7 w-7 text-neutral-900" strokeWidth={2.2} />
+          <span className="text-left">
+            <span className="block font-bold tracking-tight leading-none text-neutral-900">Vijaya Engineering Works</span>
+            <span className="block text-[10px] uppercase tracking-widest text-neutral-500 leading-none mt-0.5">Precision Gears</span>
+          </span>
         </button>
         <nav className="hidden lg:flex items-center gap-1">
           {links.map(l => (
             <button key={l.key} onClick={() => setRoute(l.key)}
-              className={`px-4 py-2 text-sm rounded-full transition ${route === l.key ? 'text-[#67e8f9] bg-[#22d3ee]/15 shadow-[0_0_18px_-4px_rgba(34,211,238,0.6)]' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`}>{l.label}</button>
+              className={`px-4 py-2 text-sm rounded-full ${route === l.key ? 'bg-neutral-100 text-neutral-900 font-medium' : 'text-neutral-600 hover:text-neutral-900'}`}>{l.label}</button>
           ))}
         </nav>
         <div className="flex items-center gap-2">
           {user ? (
             <>
-              <Button variant="ghost" size="sm" onClick={() => setRoute(isStaff(user) ? 'admin' : 'portal')} className="text-slate-300 hover:text-white hover:bg-slate-800 hidden sm:inline-flex">
+              <Button variant="ghost" size="sm" onClick={() => setRoute(isStaff(user) ? 'admin' : 'portal')} className="hidden sm:inline-flex">
                 <User className="h-4 w-4 mr-1" /> {user.firstName || user.fullName || 'Account'}
               </Button>
-              <Button aria-label="Sign out" variant="ghost" size="sm" onClick={onLogout} className="text-slate-400 hover:text-white hover:bg-slate-800"><LogOut className="h-4 w-4" /></Button>
+              <Button aria-label="Sign out" variant="ghost" size="sm" onClick={onLogout}><LogOut className="h-4 w-4" /></Button>
             </>
           ) : (
-            <Button variant="ghost" size="sm" onClick={() => setRoute('login')} className="text-slate-300 hover:text-white hover:bg-slate-800 hidden sm:inline-flex"><LogIn className="h-4 w-4 mr-1" /> Sign In</Button>
+            <Button variant="ghost" size="sm" onClick={() => setRoute('login')} className="hidden sm:inline-flex"><LogIn className="h-4 w-4 mr-1" /> Sign In</Button>
           )}
-          <Button onClick={() => setRoute('rfq')} className="btn-servo font-tech uppercase tracking-[0.14em] text-xs hidden sm:inline-flex rounded-full h-10 px-6">Request a Quote</Button>
-          <button aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} aria-controls="mobile-menu" className="lg:hidden text-white p-2" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
+          <Button onClick={() => setRoute('rfq')} className="hidden sm:inline-flex rounded-full bg-neutral-900 text-white hover:bg-neutral-700 h-10 px-6 text-sm">Request a Quote</Button>
+          <button aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} aria-controls="mobile-menu" className="lg:hidden p-2" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
         </div>
       </div>
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div id="mobile-menu" initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="lg:hidden border-t border-slate-800 bg-slate-900 overflow-hidden">
-            <div className="container mx-auto px-4 py-3 flex flex-col gap-1">
-              {links.map(l => <button key={l.key} onClick={() => { setRoute(l.key); setMobileOpen(false) }} className={`px-3 py-2 text-left rounded-md ${route === l.key ? 'text-cyan-400 bg-slate-800' : 'text-slate-300'}`}>{l.label}</button>)}
-              {user ? <>
-                <button onClick={() => { setRoute(isStaff(user) ? 'admin' : 'portal'); setMobileOpen(false) }} className="px-3 py-2 text-left text-slate-300">My Account</button>
-                <button onClick={onLogout} className="px-3 py-2 text-left text-slate-300">Sign Out</button>
-              </> : <button onClick={() => { setRoute('login'); setMobileOpen(false) }} className="px-3 py-2 text-left text-slate-300">Sign In</button>}
-              <Button onClick={() => { setRoute('rfq'); setMobileOpen(false) }} className="btn-servo font-tech uppercase tracking-[0.14em] text-xs mt-2 rounded-full">Request a Quote</Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.header>
+      {mobileOpen && (
+        <div id="mobile-menu" className="lg:hidden border-t border-neutral-200 bg-white">
+          <div className="container mx-auto px-4 py-3 flex flex-col gap-1">
+            {links.map(l => <button key={l.key} onClick={() => { setRoute(l.key); setMobileOpen(false) }} className={`px-3 py-2 text-left rounded-md ${route === l.key ? 'bg-neutral-100 font-medium' : 'text-neutral-600'}`}>{l.label}</button>)}
+            {user ? <>
+              <button onClick={() => { setRoute(isStaff(user) ? 'admin' : 'portal'); setMobileOpen(false) }} className="px-3 py-2 text-left text-neutral-600">My Account</button>
+              <button onClick={onLogout} className="px-3 py-2 text-left text-neutral-600">Sign Out</button>
+            </> : <button onClick={() => { setRoute('login'); setMobileOpen(false) }} className="px-3 py-2 text-left text-neutral-600">Sign In</button>}
+            <Button onClick={() => { setRoute('rfq'); setMobileOpen(false) }} className="rounded-full bg-neutral-900 text-white mt-2">Request a Quote</Button>
+          </div>
+        </div>
+      )}
+    </header>
   )
 }
 
 function Footer({ setRoute, cms }) {
   return (
-    <footer className="relative bg-[#04070b] text-slate-400 border-t border-white/5 overflow-hidden">
-      <div aria-hidden className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[#22d3ee]/80 to-transparent shadow-[0_0_24px_rgba(34,211,238,0.8)]" />
+    <footer className="bg-neutral-100 text-neutral-600 border-t border-neutral-200">
       <div className="container mx-auto px-4 py-14 grid md:grid-cols-4 gap-8">
         <div>
-          <div className="flex items-center gap-2 mb-3"><GearLogo /><div className="text-white font-bold">{cms?.companyName || 'Vijaya Engineering Works'}</div></div>
+          <div className="flex items-center gap-2 mb-3"><Cog className="h-6 w-6 text-neutral-900" /><div className="text-neutral-900 font-bold">{cms?.companyName || 'Vijaya Engineering Works'}</div></div>
           <p className="text-sm">Custom precision gear manufacturing from your drawings and specifications.</p>
         </div>
         <div>
-          <div className="text-white font-semibold mb-3">Products</div>
-          <ul className="space-y-2 text-sm">{PRODUCTS.map(p => <li key={p.key}><button onClick={() => setRoute('product:' + p.key)} className="hover:text-cyan-400">{p.title}</button></li>)}</ul>
+          <div className="text-neutral-900 font-semibold mb-3">Products</div>
+          <ul className="space-y-2 text-sm">{PRODUCTS.map(p => <li key={p.key}><button onClick={() => setRoute('product:' + p.key)} className="hover:text-neutral-900">{p.title}</button></li>)}</ul>
         </div>
         <div>
-          <div className="text-white font-semibold mb-3">Company</div>
+          <div className="text-neutral-900 font-semibold mb-3">Company</div>
           <ul className="space-y-2 text-sm">
-            <li><button onClick={() => setRoute('about')} className="hover:text-cyan-400">About</button></li>
-            <li><button onClick={() => setRoute('capabilities')} className="hover:text-cyan-400">Capabilities</button></li>
-            <li><button onClick={() => setRoute('gallery')} className="hover:text-cyan-400">Gallery</button></li>
-            <li><button onClick={() => setRoute('contact')} className="hover:text-cyan-400">Contact</button></li>
+            <li><button onClick={() => setRoute('about')} className="hover:text-neutral-900">About</button></li>
+            <li><button onClick={() => setRoute('capabilities')} className="hover:text-neutral-900">Capabilities</button></li>
+            <li><button onClick={() => setRoute('gallery')} className="hover:text-neutral-900">Gallery</button></li>
+            <li><button onClick={() => setRoute('contact')} className="hover:text-neutral-900">Contact</button></li>
           </ul>
         </div>
         <div>
-          <div className="text-white font-semibold mb-3">Contact</div>
+          <div className="text-neutral-900 font-semibold mb-3">Contact</div>
           <ul className="space-y-2 text-sm">
-            {cms?.phone && <li className="flex items-center gap-2"><Phone className="h-4 w-4 shrink-0" /><a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:text-cyan-400">{cms.phone}</a></li>}
-            {cms?.email && <li className="flex items-center gap-2"><Mail className="h-4 w-4 shrink-0" /><a href={`mailto:${cms.email}`} className="break-all hover:text-cyan-400">{cms.email}</a></li>}
+            {cms?.phone && <li className="flex items-center gap-2"><Phone className="h-4 w-4 shrink-0" /><a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:text-neutral-900">{cms.phone}</a></li>}
+            {cms?.email && <li className="flex items-center gap-2"><Mail className="h-4 w-4 shrink-0" /><a href={`mailto:${cms.email}`} className="break-all hover:text-neutral-900">{cms.email}</a></li>}
             {cms?.address && <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 shrink-0" />{cms.address}</li>}
-            <li className="flex items-start gap-2"><Globe2 className="h-4 w-4 mt-0.5 shrink-0" /><a href={COMPANY_URL} className="break-all hover:text-cyan-400">vijayaengineeringworks.com</a></li>
-            <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 shrink-0" /><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="hover:text-cyan-400">Find us on Google Maps</a></li>
-            {!cms?.email && !cms?.phone && <li><button onClick={() => setRoute('rfq')} className="underline">Contact us through a quote request</button></li>}
+            <li className="flex items-start gap-2"><Globe2 className="h-4 w-4 mt-0.5 shrink-0" /><a href={COMPANY_URL} className="break-all hover:text-neutral-900">vijayaengineeringworks.com</a></li>
           </ul>
         </div>
       </div>
-      <div aria-hidden className="select-none pointer-events-none overflow-hidden border-t border-white/5">
-        <div className="font-display font-bold text-stroke-faint text-[24vw] leading-[0.78] text-center tracking-tight -mb-[5vw]">VEW</div>
-      </div>
-      <div className="border-t border-slate-800 py-4 text-center text-xs">© {new Date().getFullYear()} {cms?.companyName || 'Vijaya Engineering Works'}. All rights reserved.</div>
+      <div className="border-t border-neutral-200 py-4 text-center text-xs">© {new Date().getFullYear()} {cms?.companyName || 'Vijaya Engineering Works'}. All rights reserved.</div>
     </footer>
   )
 }
 
-// ============== HOME (Apple-style animations) ==============
-function HomePage({ setRoute, cms, booted }) {
-  const heroRef = useRef(null)
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] })
-  const heroY = useTransform(scrollYProgress, [0, 1], [0, 200])
-  const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0])
-  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 1.1])
-
+// ============== HOME (simple, no animation) ==============
+function HomePage({ setRoute, cms }) {
   return (
-    <div>
+    <div className="bg-white text-neutral-900">
       {/* HERO */}
-      <section ref={heroRef} className="relative bg-[#06090d] text-white overflow-hidden">
-        <motion.div style={{ y: heroY, scale: heroScale }} className="absolute inset-0">
-          <ResponsiveImage src={HERO_IMG} alt="" priority sizes="100vw" className="w-full h-full object-cover opacity-20" />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#06090d]/70 via-[#06090d]/85 to-[#06090d]" />
-        </motion.div>
-        <GridBg />
-        <Orbs />
-        <Noise />
-        <WebGLStage />
-        <div className="relative container mx-auto px-4 pt-28 pb-14 lg:pt-36 lg:pb-20 grid lg:grid-cols-12 gap-14 items-center">
-          <motion.div style={{ opacity: heroOpacity }} className="lg:col-span-7">
-            <motion.div initial={{ opacity: 0, y: 24 }} animate={booted ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
-              <div className="font-tech text-[11px] uppercase tracking-[0.42em] text-[#22d3ee] mb-7">// Servo-driven gear manufacturing</div>
-            </motion.div>
-            <h1 className="k-chars font-display font-bold tracking-[-0.02em] leading-[0.9] text-[clamp(3.4rem,8.5vw,7.2rem)] mb-7">
-              WE CUT<br />
-              <span className="text-servo drop-shadow-[0_0_45px_rgba(34,211,238,0.35)]">PRECISION</span><br />
-              <span className="text-stroke">INTO STEEL</span>
-            </h1>
-            <motion.p initial={{ opacity: 0, y: 24 }} animate={booted ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.9, delay: 0.26 }}
-              className="text-lg md:text-xl text-[#8b98a5] max-w-xl font-light leading-relaxed mb-9">
-              Spiral bevel, helical and spur gears — plus complete gear sets — machined from your drawings to <span className="text-[#eef3f6] font-normal">±0.002&nbsp;mm</span> and inspected to AGMA Q12.
-            </motion.p>
-            <motion.div initial={{ opacity: 0, y: 24 }} animate={booted ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.9, delay: 0.38 }} className="flex flex-wrap gap-4 mb-12">
-              <Button size="lg" onClick={() => setRoute('rfq')} className="btn-servo font-tech uppercase tracking-[0.18em] text-sm h-14 px-10 rounded-full">
-                Request a Quote <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-              <Button size="lg" variant="outline" data-magnetic onClick={() => setRoute('gallery')} className="border-white/25 text-white hover:bg-white hover:text-black bg-white/5 backdrop-blur-sm h-14 px-10 text-sm rounded-full font-tech uppercase tracking-[0.18em]">
-                See the shop
-              </Button>
-            </motion.div>
-            <motion.div initial={{ opacity: 0 }} animate={booted ? { opacity: 1 } : {}} transition={{ duration: 1, delay: 0.55 }}
-              className="grid grid-cols-3 max-w-lg border-y border-white/10 divide-x divide-white/10">
-              {[['30+', 'Years cutting'], ['Q12', 'AGMA grade'], ['1200', 'mm max OD']].map(([v, l]) => (
-                <div key={l} className="px-5 py-4 first:pl-0">
-                  <div className="font-display text-3xl font-bold text-[#eef3f6]">{v}</div>
-                  <div className="font-tech text-[10px] uppercase tracking-[0.24em] text-[#8b98a5] mt-1">{l}</div>
-                </div>
-              ))}
-            </motion.div>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, scale: 0.96, y: 30 }} animate={booted ? { opacity: 1, scale: 1, y: 0 } : {}} transition={{ duration: 1.1, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="lg:col-span-5 relative hidden lg:block">
-            <div className="hud-frame relative rounded-2xl bg-[#080d13]/85 border border-cyan-400/20 overflow-hidden shadow-[0_40px_120px_-30px_rgba(0,0,0,0.9)]">
-              <Scanline />
-              <div className="relative p-8">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="font-tech text-[10px] uppercase tracking-[0.28em] text-[#22d3ee]">Gear train — live sync</div>
-                  <div className="flex items-center gap-2 font-tech text-[10px] uppercase tracking-[0.2em] text-emerald-300">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-vew-blink" /> In tolerance
-                  </div>
-                </div>
-                <GearTrain className="h-[360px]" />
-                <Typewriter className="font-tech text-[11px] leading-relaxed text-cyan-200/80 h-[4.5rem] whitespace-pre-wrap"
-                  lines={['> SERVO LINK ............ OK', '> RATIO 20:13:16 :: SYNCED', '> BACKLASH 0.002 mm :: NOMINAL']} />
-              </div>
-            </div>
-            <div className="animate-vew-float absolute -left-8 top-10 border border-cyan-400/30 bg-black/60 backdrop-blur-md rounded-xl px-4 py-3 shadow-[0_0_30px_-8px_rgba(34,211,238,0.5)]">
-              <div className="font-tech text-[10px] uppercase tracking-[0.24em] text-[#8b98a5]">CMM report</div>
-              <div className="font-display text-xl font-bold text-emerald-300 mt-0.5">PASSED ✓</div>
-            </div>
-          </motion.div>
+      <section className="container mx-auto px-4 pt-14 pb-12 md:pt-20 md:pb-16">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Vijaya Engineering Works · Precision gear manufacturing</p>
+        <h1 className="font-display font-bold tracking-tight leading-[0.95] text-5xl md:text-7xl max-w-4xl">
+          Gears cut to perfection.
+        </h1>
+        <p className="mt-5 text-lg text-neutral-600 max-w-xl">
+          Spiral bevel, helical and spur gears — plus complete gear sets — machined from your drawings and inspected to AGMA Q12.
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Button size="lg" onClick={() => setRoute('rfq')} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700 h-12 px-8">
+            Request a Quote <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+          <Button size="lg" variant="outline" onClick={() => setRoute('products')} className="rounded-full h-12 px-8">
+            Browse Products
+          </Button>
         </div>
-        <div className="relative border-t border-white/10 bg-black/40 backdrop-blur-sm">
-          <div className="container mx-auto px-4 py-3.5 flex items-center gap-8 overflow-x-auto font-tech text-[11px] tracking-[0.22em] uppercase text-[#8b98a5] whitespace-nowrap">
-            <span className="flex items-center gap-2.5 text-[#67e8f9]"><span className="h-2 w-2 rounded-full bg-emerald-400 animate-vew-blink" /> Shop status: running</span>
-            <span>Tolerance ±0.002 mm</span>
-            <span>AGMA Q12 / DIN 4</span>
-            <span>Max OD 1200 mm</span>
-            <span>ISO 9001</span>
-            <span className="ml-auto hidden md:inline">Est. 30+ years</span>
+        <div className="mt-10 rounded-2xl overflow-hidden bg-neutral-100">
+          <Image src={HERO_IMG} alt="Vijaya Engineering Works workshop" width={1600} height={900} className="w-full h-auto" priority />
+        </div>
+        <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 border-t border-neutral-200 pt-8">
+          {[['30+', 'Years of precision'], ['Q12', 'AGMA quality grade'], ['1200 mm', 'Max OD capacity'], ['±0.002 mm', 'Tolerance']].map(([v, l]) => (
+            <div key={l}>
+              <div className="font-display text-3xl md:text-4xl font-bold">{v}</div>
+              <div className="text-sm text-neutral-500 mt-1">{l}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* PRODUCTS */}
+      <section className="bg-neutral-100 py-16 md:py-20">
+        <div className="container mx-auto px-4">
+          <div className="flex items-end justify-between mb-8">
+            <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight">Our products</h2>
+            <button onClick={() => setRoute('products')} className="text-sm font-medium underline underline-offset-4">View all</button>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {PRODUCTS.map(p => (
+              <button key={p.key} onClick={() => setRoute('product:' + p.key)} className="text-left bg-white rounded-2xl overflow-hidden border border-neutral-200">
+                <div className="aspect-[4/3] bg-neutral-200 overflow-hidden">
+                  <Image src={p.img} alt={p.title} width={800} height={600} className="w-full h-full object-cover" loading="lazy" />
+                </div>
+                <div className="p-5">
+                  <h3 className="font-display font-bold text-xl">{p.title}</h3>
+                  <p className="text-sm text-neutral-500 mt-1">{cms?.productDescriptions?.[p.key] || p.apps.slice(0, 3).join(' · ')}</p>
+                  <span className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium">Explore <ArrowRight className="h-4 w-4" /></span>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* MARQUEE */}
-      <div className="relative overflow-hidden border-y border-[#22d3ee]/25 bg-[#070b11] py-6">
-        <div className="animate-vew-marquee flex w-max whitespace-nowrap">
-          {[0, 1].map(dup => (
-            <div key={dup} aria-hidden={dup === 1} className="flex items-center">
-              {['Spiral Bevel Gears', 'Helical Gears', 'Spur Gears', 'Precision Grinding', 'CNC Machining', 'Heat Treatment', 'CMM Inspection', 'Custom Gear Sets'].map((t, i) => (
-                <span key={t + dup} className="mx-8 flex items-center gap-16">
-                  <span className={`font-display text-4xl md:text-5xl font-bold uppercase tracking-tight ${i % 2 === 0 ? 'text-stroke' : 'text-servo'}`}>{t}</span>
-                  <Cog className="h-7 w-7 text-[#22d3ee]/50" />
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#070b11] to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#070b11] to-transparent" />
-      </div>
-
-      {/* MANIFESTO */}
-      <section className="relative bg-[#06090d] py-24 md:py-32 overflow-hidden">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <FadeIn>
-            <Eyebrow>The VEW standard</Eyebrow>
-            <p className="font-display text-3xl md:text-5xl font-medium leading-[1.28] tracking-tight text-[#eef3f6]">
-              We don&apos;t sell gears. We sell <span className="text-servo">certainty</span> — the certainty that at 3&nbsp;AM, the gear inside your machine was cut right, ground right, and <span className="text-stroke">measured twice</span>.
-            </p>
-            <div className="mt-8 font-tech text-[11px] tracking-[0.32em] uppercase text-[#8b98a5]">— The shop floor, every day</div>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* STATS */}
-      <section className="bg-[#080d13] border-y border-white/10 py-20">
+      {/* CAPABILITIES */}
+      <section className="py-16 md:py-20">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
-            {[
-              { v: <Counter to={30} suffix="+" />, l: 'Years of precision', s: '// since 1994' },
-              { v: 'Q12', l: 'AGMA quality grade', s: '// certified' },
-              { v: <Counter to={1200} />, l: 'mm max OD capacity', s: '// diameter' },
-              { v: <Counter to={0.002} decimals={3} prefix="±" />, l: 'mm tolerance', s: '// accuracy' },
-            ].map((s, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1, duration: 0.7 }} className="relative pl-6">
-                <span aria-hidden className="absolute left-0 top-1 bottom-1 w-px bg-gradient-to-b from-[#22d3ee] via-[#22d3ee]/40 to-transparent" />
-                <div className="font-display text-6xl md:text-7xl font-bold tracking-tight text-servo drop-shadow-[0_0_28px_rgba(34,211,238,0.3)]">{s.v}</div>
-                <div className="font-tech text-xs uppercase tracking-[0.24em] text-[#eef3f6] mt-3">{s.l}</div>
-                <div className="font-tech text-[10px] tracking-[0.24em] text-white/25 mt-1 uppercase">{s.s}</div>
-              </motion.div>
+          <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight mb-8">What we do</h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 border border-neutral-200 rounded-2xl overflow-hidden">
+            {CAPABILITIES.map(c => (
+              <div key={c.title} className="bg-white p-6">
+                <c.icon className="h-7 w-7 mb-4" />
+                <h3 className="font-semibold text-lg">{c.title}</h3>
+                <p className="text-sm text-neutral-500 mt-1">{c.desc}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
       {/* PROCESS */}
-      <section className="relative bg-[#0a0f16] py-28 overflow-hidden">
-        <GridBg />
-        <div className="relative container mx-auto px-4">
-          <SectionHead no="02" eyebrow="Our Process" title={<>Ten stages. <span className="text-servo">Zero guesswork.</span></>} sub="Your gear travels a tracked, ten-stage line from raw stock to dispatch — follow it live from your portal." />
-        </div>
-        <div className="relative">
-          <div className="flex gap-5 overflow-x-auto snap-x px-4 md:px-[max(1rem,calc((100vw-80rem)/2+1rem))] pb-4" style={{ scrollbarWidth: 'none' }}>
+      <section className="bg-neutral-900 text-white py-16 md:py-20">
+        <div className="container mx-auto px-4">
+          <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight mb-2">From drawing to dispatch</h2>
+          <p className="text-neutral-400 mb-10">Ten tracked stages. Follow your order live from the customer portal.</p>
+          <ol className="grid sm:grid-cols-2 lg:grid-cols-5 gap-px bg-neutral-700 rounded-2xl overflow-hidden border border-neutral-700">
             {PRODUCTION_STAGES.map((s, i) => (
-              <div key={s.name} className="snap-start shrink-0 w-[270px]">
-                <div aria-hidden className="font-display text-7xl font-bold text-stroke-faint leading-none mb-[-1.1rem] ml-2 select-none">{String(i + 1).padStart(2, '0')}</div>
-                <GlowCard className="relative">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#22d3ee]/25 to-[#22d3ee]/5 border border-[#22d3ee]/40 flex items-center justify-center mb-5 shadow-[0_0_24px_-6px_rgba(34,211,238,0.6)]">
-                    <s.icon className="h-6 w-6 text-[#67e8f9]" />
-                  </div>
-                  <div className="font-tech text-[10px] uppercase tracking-[0.24em] text-[#22d3ee]/80 mb-2">Stage {String(i + 1).padStart(2, '0')}</div>
-                  <div className="font-display font-bold text-[#eef3f6] text-xl">{s.name}</div>
-                </GlowCard>
-              </div>
+              <li key={s.name} className="bg-neutral-900 p-5">
+                <div className="text-xs text-neutral-500 mb-2">{String(i + 1).padStart(2, '0')}</div>
+                <div className="font-medium">{s.name}</div>
+              </li>
             ))}
-            <button onClick={() => setRoute('rfq')} className="snap-start shrink-0 w-[270px] rounded-2xl border-2 border-dashed border-[#22d3ee]/40 hover:border-[#22d3ee] hover:bg-[#22d3ee]/5 transition-all flex flex-col items-center justify-center gap-3 min-h-[248px] group">
-              <span className="font-display text-2xl font-bold text-[#67e8f9]">Start yours</span>
-              <span className="font-tech text-[11px] uppercase tracking-[0.24em] text-[#8b98a5] group-hover:text-[#67e8f9] flex items-center gap-2">Begin RFQ <ArrowRight className="h-4 w-4" /></span>
-            </button>
-          </div>
-          <div className="container mx-auto px-4 mt-4 font-tech text-[11px] tracking-[0.3em] uppercase text-[#8b98a5]">Drag / scroll →</div>
-        </div>
-      </section>
-
-      {/* PRODUCTS */}
-      <section className="relative bg-[#06090d] text-white py-28 overflow-hidden">
-        <Orbs />
-        <div className="relative container mx-auto px-4">
-          <SectionHead no="03" eyebrow="Our Products" title={<>Five lines. <span className="text-servo">One obsession.</span></>} sub="Every product line below is built from your drawings — no catalog compromises." />
-          <div className="grid lg:grid-cols-3 gap-6">
-            {PRODUCTS.map((p, i) => (
-              <motion.div key={p.key} initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }} variants={fadeUp}
-                className={i === 0 ? 'lg:col-span-2' : ''}>
-                <SpotCard onClick={() => setRoute('product:' + p.key)}
-                  className={`overflow-hidden group cursor-pointer rounded-2xl bg-[#0a1016]/90 border border-white/10 hover:border-[#22d3ee]/60 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_60px_-12px_rgba(34,211,238,0.4)] h-full ${i === 0 ? 'grid md:grid-cols-2' : ''}`}>
-                  <div className={`${i === 0 ? 'h-64 md:h-full md:min-h-[320px]' : 'aspect-[16/10]'} overflow-hidden bg-black relative`}>
-                    <ResponsiveImage src={p.img} alt={p.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a1016]/80 via-transparent to-transparent" />
-                    <div className="absolute top-4 left-4 font-tech text-[11px] tracking-[0.24em] text-[#67e8f9] bg-black/50 backdrop-blur px-3 py-1.5 rounded-full border border-[#22d3ee]/30">{String(i + 1).padStart(2, '0')}</div>
-                  </div>
-                  <div className="p-7 relative flex flex-col justify-center">
-                    <div className="pointer-events-none absolute inset-x-7 top-0 h-px bg-gradient-to-r from-transparent via-[#22d3ee]/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <h3 className={`font-display font-bold text-[#eef3f6] mb-2 group-hover:text-[#67e8f9] transition-colors ${i === 0 ? 'text-3xl md:text-4xl' : 'text-xl'}`}>{p.title}</h3>
-                    <p className="text-sm text-[#8b98a5] line-clamp-2 leading-relaxed">{cms?.productDescriptions?.[p.key] || 'Precision manufactured to your specifications.'}</p>
-                    <div className="mt-4 text-[#22d3ee] font-tech text-xs uppercase tracking-[0.2em] flex items-center gap-1.5 group-hover:gap-3 transition-all">Explore <ArrowRight className="h-4 w-4" /></div>
-                  </div>
-                </SpotCard>
-              </motion.div>
-            ))}
-          </div>
-          <FadeIn>
-            <button onClick={() => setRoute('rfq')} className="mt-6 w-full rounded-2xl border border-dashed border-[#22d3ee]/40 hover:border-[#22d3ee] hover:bg-[#22d3ee]/5 px-8 py-6 flex items-center justify-between gap-4 text-left transition-all group">
-              <span className="font-display text-xl md:text-2xl font-bold text-[#eef3f6]">Don&apos;t see your gear? <span className="text-servo">We cut what you draw.</span></span>
-              <span className="font-tech text-xs uppercase tracking-[0.2em] text-[#22d3ee] flex items-center gap-2 shrink-0">Get a quote <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" /></span>
-            </button>
-          </FadeIn>
-        </div>
-      </section>
-
-      {/* CAPABILITIES */}
-      <section className="relative bg-[#0a0f16] py-28 overflow-hidden">
-        <GridBg />
-        <div className="relative container mx-auto px-4">
-          <SectionHead no="04" eyebrow="Capabilities" title={<>The full stack, <span className="text-servo">under one roof.</span></>} sub="Six disciplines. One accountable shop. Tap a line to see what it covers." />
-          <FadeIn>
-            <div className="border-t border-white/10 max-w-4xl">
-              {CAPABILITIES.map((c, i) => <CapRow key={c.title} c={c} i={i} />)}
-            </div>
-          </FadeIn>
+          </ol>
         </div>
       </section>
 
       {/* GALLERY */}
-      <section className="relative bg-[#06090d] py-28 overflow-hidden">
+      <section className="py-16 md:py-20">
         <div className="container mx-auto px-4">
-          <FadeIn>
-            <div className="flex items-end justify-between flex-wrap gap-4 mb-10">
-              <div>
-                <Eyebrow>Gallery</Eyebrow>
-                <h2 className="font-display text-4xl md:text-6xl font-bold text-[#eef3f6] tracking-tight">Inside the <span className="text-servo">shop</span></h2>
-              </div>
-              <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full border-white/25 text-white bg-white/5 hover:bg-white hover:text-black backdrop-blur-sm font-tech uppercase tracking-[0.18em] text-xs">Open gallery <ArrowRight className="h-4 w-4 ml-1" /></Button>
-            </div>
-          </FadeIn>
-        </div>
-        <FadeIn>
-          <div className="space-y-4">
-            <div className="overflow-hidden">
-              <div className="animate-vew-marquee flex w-max gap-4 pr-4">
-                {[...GALLERY, ...GALLERY].map((photo, i) => (
-                  <button key={'a' + i} onClick={() => setRoute('gallery')} className="relative h-52 md:h-64 w-72 md:w-96 shrink-0 rounded-xl overflow-hidden border border-white/10 group hover:border-[#22d3ee]/60 transition-colors">
-                    <ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="absolute bottom-3 left-4 font-tech text-[11px] uppercase tracking-[0.2em] text-white opacity-0 group-hover:opacity-100 transition-opacity">{photo.caption}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="overflow-hidden">
-              <div className="animate-vew-marquee-rev flex w-max gap-4 pr-4">
-                {[...GALLERY].reverse().flatMap(p => [p, p]).map((photo, i) => (
-                  <button key={'b' + i} onClick={() => setRoute('gallery')} className="relative h-52 md:h-64 w-72 md:w-96 shrink-0 rounded-xl overflow-hidden border border-white/10 group hover:border-[#22d3ee]/60 transition-colors">
-                    <ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="absolute bottom-3 left-4 font-tech text-[11px] uppercase tracking-[0.2em] text-white opacity-0 group-hover:opacity-100 transition-opacity">{photo.caption}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="flex items-end justify-between mb-8">
+            <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight">Inside the shop</h2>
+            <button onClick={() => setRoute('gallery')} className="text-sm font-medium underline underline-offset-4">Open gallery</button>
           </div>
-        </FadeIn>
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#06090d] to-transparent" />
-        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[#06090d] to-transparent" />
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {GALLERY.slice(0, 8).map(g => (
+              <button key={g.src} onClick={() => setRoute('gallery')} className="rounded-xl overflow-hidden bg-neutral-100 aspect-[4/3]">
+                <Image src={g.src} alt={g.alt} width={600} height={450} className="w-full h-full object-cover" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        </div>
       </section>
 
-      {/* CTA — engineering title block */}
-      <section className="relative bg-[#06090d] px-4 py-28 overflow-hidden">
-        <GridBg />
-        <div className="relative container mx-auto max-w-5xl">
-          <FadeIn>
-            <div className="relative border border-white/15 bg-[#080d13]/90 backdrop-blur shadow-[0_0_100px_-30px_rgba(34,211,238,0.35)]">
-              <span aria-hidden className="absolute -top-3 -left-2 font-tech text-[#22d3ee] text-lg select-none">+</span>
-              <span aria-hidden className="absolute -top-3 -right-2 font-tech text-[#22d3ee] text-lg select-none">+</span>
-              <span aria-hidden className="absolute -bottom-3 -left-2 font-tech text-[#22d3ee] text-lg select-none">+</span>
-              <span aria-hidden className="absolute -bottom-3 -right-2 font-tech text-[#22d3ee] text-lg select-none">+</span>
-              <div className="p-8 md:p-14">
-                <div className="flex items-center justify-between flex-wrap gap-3 mb-8 font-tech text-[11px] tracking-[0.3em] uppercase">
-                  <span className="text-[#22d3ee]">// Request for quote</span>
-                  <span className="text-[#8b98a5]">Doc. RFQ-2026</span>
-                </div>
-                <h2 className="font-display text-5xl md:text-7xl font-bold tracking-tight text-[#eef3f6] leading-[0.95] mb-6">
-                  SEND US YOUR<br /><span className="text-servo drop-shadow-[0_0_35px_rgba(34,211,238,0.35)]">GEAR DRAWING.</span>
-                </h2>
-                <p className="text-[#8b98a5] text-lg font-light max-w-xl mb-10 leading-relaxed">Upload PDF, STEP, DXF, DWG, JPG, or PNG. We&apos;ll review it on the shop floor and reply with a detailed quote.</p>
-                <Button size="lg" onClick={() => setRoute('rfq')} className="btn-servo font-tech uppercase tracking-[0.18em] text-sm h-14 px-10 rounded-full">
-                  Start your RFQ <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 border-t border-white/15 font-tech">
-                {[['Scale', '1 : 1'], ['Tolerance', '±0.002 mm'], ['Material', 'Per drawing'], ['Drawn', 'VEW · Shop']].map(([k, v], i) => (
-                  <div key={k} className={`px-6 py-4 ${i < 3 ? 'md:border-r md:border-white/10' : ''} ${i % 2 === 0 ? 'border-r border-white/10' : ''}`}>
-                    <div className="text-[10px] tracking-[0.3em] text-[#8b98a5] uppercase mb-1.5">{k}</div>
-                    <div className="text-[#eef3f6] text-sm">{v}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </FadeIn>
+      {/* CTA */}
+      <section className="bg-neutral-900 text-white">
+        <div className="container mx-auto px-4 py-16 md:py-24 text-center">
+          <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tight">Send us your gear drawing.</h2>
+          <p className="text-neutral-400 mt-4 max-w-xl mx-auto">Upload PDF, STEP, DXF, DWG, JPG or PNG. We&apos;ll review it on the shop floor and reply with a detailed quote.</p>
+          <Button size="lg" onClick={() => setRoute('rfq')} className="mt-8 rounded-full bg-white text-neutral-900 hover:bg-neutral-200 h-12 px-8">
+            Start your RFQ <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
         </div>
       </section>
     </div>
@@ -2222,7 +2033,6 @@ function CmsEditor({ auth, cms, reloadCms }) {
 // ============== APP ==============
 function App() {
   const auth = useAuth()
-  const [booted, setBooted] = useState(false)
   const [route, setRoute] = useState('home')
   const [authAction, setAuthAction] = useState(null)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -2251,7 +2061,6 @@ function App() {
 
   useEffect(() => {
     window.scrollTo(0, 0)
-    kineticState.smooth = 0; kineticState.raw = 0; kineticState.vel = 0
     setMobileOpen(false)
     const title = route.startsWith('product:') ? PRODUCTS.find(p => p.key === route.slice(8))?.title : pageTitles[route]
     document.title = `${title || 'Page not found'} | Vijaya Engineering Works`
@@ -2288,7 +2097,7 @@ function App() {
   let content
   if (route === 'admin' && !isStaff(auth.user)) content = <LoginPage setRoute={goRoute} auth={auth} />
   else if (route === 'invite' && authAction?.type === 'invite') content = <CompanyInvitation token={authAction.token} auth={auth} onDone={() => { clearAuthAction(); setRoute('portal') }} onSignIn={() => { clearAuthAction(); setRoute('login') }} />
-  else if (route === 'home') content = <HomePage setRoute={goRoute} cms={cms} booted={booted} />
+  else if (route === 'home') content = <HomePage setRoute={goRoute} cms={cms} />
   else if (route === 'products') content = <ProductsPage setRoute={goRoute} cms={cms} />
   else if (route.startsWith('product:')) content = <ProductDetail productKey={route.slice(8)} setRoute={goRoute} cms={cms} />
   else if (route === 'capabilities') content = <CapabilitiesPage />
@@ -2299,24 +2108,16 @@ function App() {
   else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} authAction={authAction} clearAuthAction={clearAuthAction} />
   else if (route === 'portal') content = <CustomerPortal auth={auth} setRoute={goRoute} />
   else if (route === 'admin') content = <AdminDashboard auth={auth} cms={cms} reloadCms={loadCms} />
-  else content = <HomePage setRoute={goRoute} cms={cms} booted={booted} />
+  else content = <HomePage setRoute={goRoute} cms={cms} />
 
   return (
-    <MotionConfig reducedMotion="user"><div className="min-h-screen flex flex-col">
-      <AnimatePresence>{!booted && <Preloader key="boot" onDone={() => { setBooted(true); kineticState.booted = true; window.dispatchEvent(new Event('vew:booted')) }} />}</AnimatePresence>
-      <ScrollProgress />
+    <div className="min-h-screen flex flex-col bg-white text-neutral-900">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:p-3">Skip to content</a>
-      <KineticGlide key={route}>
       <Nav route={route.split(':')[0]} setRoute={goRoute} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} user={auth.user} onLogout={() => setSignoutOpen(true)} />
       <ImpersonationBanner user={auth.user} onExit={async () => { try { await auth.exitImpersonation(); setRoute('admin'); toast.success('Exited override — back to admin') } catch (error) { toast.error(error.message) } }} />
       <main id="main-content" className="flex-1 min-w-0" tabIndex={-1}>{content}</main>
       {cmsError && <div role="alert" className="mx-auto max-w-xl px-4 py-4 text-sm text-red-700">Some business details could not be loaded. <button className="underline" onClick={loadCms}>Try again</button></div>}
       <Footer setRoute={goRoute} cms={cms} />
-      </KineticGlide>
-      <Cursor />
-      <Grain />
-      <KineticEnhancer route={route} />
-
       <Dialog open={signoutOpen} onOpenChange={setSignoutOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -2332,7 +2133,7 @@ function App() {
           </div>
         </DialogContent>
       </Dialog>
-    </div></MotionConfig>
+    </div>
   )
 }
 

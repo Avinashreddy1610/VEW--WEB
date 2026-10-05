@@ -1,6 +1,5 @@
 import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
-import './kinetic.css'
 import { Toaster } from '@/components/ui/sonner'
 import { siteDescription } from '@/lib/site-content.mjs'
 
