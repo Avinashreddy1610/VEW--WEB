@@ -146,10 +146,13 @@ function useAuth() {
   useEffect(() => {
     // Retire legacy browser-readable credentials. The server owns the session cookie.
     try { localStorage.removeItem('vew_token'); localStorage.removeItem('vew_admin_token') } catch { /* Storage may be disabled; cookie sign-in still works. */ }
-    fetch('/api/auth/me')
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 10000)
+    fetch('/api/auth/me', { signal: ctrl.signal })
       .then(r => r.json()).then(d => { if (d.user) { setUser(d.user); setSessionKey(d.user.id) } else setSessionKey(null) })
       .catch(() => { setSessionKey(null); setUser(null) })
-      .finally(() => setLoading(false))
+      .finally(() => { clearTimeout(timer); setLoading(false) })
+    return () => { clearTimeout(timer); ctrl.abort() }
   }, [])
   const login = async (identifier, password) => {
     const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, password }) })
@@ -2092,7 +2095,10 @@ function App() {
     setRoute(r)
   }
 
-  if (auth.loading) return <div role="status" className="min-h-screen flex items-center justify-center gap-3"><Loader2 className="h-8 w-8 animate-spin text-cyan-500" />Loading your account…</div>
+  // Public pages render immediately — never block them on the session check.
+  // Only account routes (login, portal, admin, rfq, invite) wait for auth.
+  const isPublicRoute = route === 'home' || route === 'products' || route.startsWith('product:') || route === 'capabilities' || route === 'gallery' || route === 'about' || route === 'contact'
+  if (auth.loading && !isPublicRoute) return <div role="status" className="min-h-screen flex items-center justify-center gap-3"><Loader2 className="h-8 w-8 animate-spin text-cyan-500" />Loading your account…</div>
 
   let content
   if (route === 'admin' && !isStaff(auth.user)) content = <LoginPage setRoute={goRoute} auth={auth} />
