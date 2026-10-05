@@ -1,4 +1,5 @@
 import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
+import { ClerkProvider } from '@clerk/nextjs'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { siteDescription } from '@/lib/site-content.mjs'
@@ -20,7 +21,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${inter.variable} ${display.variable} ${tech.variable}`}>
       <body className="font-sans antialiased bg-slate-50 text-slate-900">
-        {children}
+        <ClerkProvider>
+          {children}
+        </ClerkProvider>
         <Toaster position="top-right" richColors />
       </body>
     </html>
