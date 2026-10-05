@@ -449,7 +449,7 @@ async function dispatchRequest(request, ctx) {
       if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
       const url = new URL(request.url)
       const q = literalSearch(url.searchParams.get('q'))
-      const filter = { ...(isOwner(me) ? {} : { role: 'customer' }), ...(q ? { $or: ['firstName','lastName','email','phone','companyName'].map(k => ({ [k]: { $regex: q, $options: 'i' } })) } : {}) }
+      const filter = { deletedAt: { $exists: false }, ...(isOwner(me) ? {} : { role: 'customer' }), ...(q ? { $or: ['firstName','lastName','email','phone','companyName'].map(k => ({ [k]: { $regex: q, $options: 'i' } })) } : {}) }
       const { rows, pagination } = await pageQuery(db.collection('users'), filter, request)
       const enriched = await Promise.all(rows.map(async u => ({ ...safeUser(u), rfqCount: await db.collection('rfqs').countDocuments({ $or: [{ userId: u.id }, { 'customer.email': u.email }] }, { maxTimeMS: 8000 }) })))
       return json({ users: enriched, pagination })
@@ -457,7 +457,10 @@ async function dispatchRequest(request, ctx) {
 
     if (route.match(/^admin\/users\/[^/]+$/) && ['PATCH','DELETE'].includes(method)) {
       if (!isStaff(me)) throw new HttpError(403, 'Staff access required')
-      const target = { id: path[2], role: 'customer', email: { $ne: ownerEmail() } }
+      const targetId = path[2]
+      if (targetId === me.id) throw new HttpError(403, 'You cannot change your own account here')
+      // Owners may edit/remove any account (including managers); managers may only touch customers.
+      const target = { id: targetId, email: { $ne: ownerEmail() }, ...(isOwner(me) ? {} : { role: 'customer' }) }
       const update = method === 'DELETE'
         ? { $set: { isActive: false, deletedAt: new Date().toISOString(), deletedBy: me.id }, $inc: { sessionVersion: 1 } }
         : { $set: Object.fromEntries(['firstName','lastName','companyName','phone'].map(k => [k, ''])) }
@@ -467,7 +470,7 @@ async function dispatchRequest(request, ctx) {
         if (body.phone !== undefined) update.$set.phoneNorm = normalizePhone(body.phone)
       }
       const result = await db.collection('users').updateOne(target, update)
-      if (!result.matchedCount) throw new HttpError(403, 'Only customer records can be changed here')
+      if (!result.matchedCount) throw new HttpError(403, 'This account cannot be changed here')
       return json({ success: true })
     }
 
@@ -476,8 +479,9 @@ async function dispatchRequest(request, ctx) {
       const id = path[2]
       const u = await db.collection('users').findOne({ id })
       if (!u) return json({ error: 'Not found' }, 404)
-      if (u.role !== 'customer' || u.email === ownerEmail()) return json({ error: 'Only customer accounts can be changed here' }, 403)
-      const changed = await db.collection('users').updateOne({ id, role: 'customer', email: { $ne: ownerEmail() } }, { $set: { isActive: !u.isActive }, $inc: { sessionVersion: 1 } })
+      if (id === me.id || u.email === ownerEmail()) return json({ error: 'This account cannot be disabled here' }, 403)
+      if (!isOwner(me) && u.role !== 'customer') return json({ error: 'Only customer accounts can be changed here' }, 403)
+      const changed = await db.collection('users').updateOne({ id, email: { $ne: ownerEmail() }, ...(isOwner(me) ? {} : { role: 'customer' }) }, { $set: { isActive: !u.isActive }, $inc: { sessionVersion: 1 } })
       if (!changed.matchedCount) throw new HttpError(403, 'Account role changed; refresh and try again')
       return json({ success: true, isActive: !u.isActive })
     }

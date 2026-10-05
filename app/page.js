@@ -1,6 +1,6 @@
 'use client'
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { motion, MotionConfig, AnimatePresence, useScroll, useTransform } from 'framer-motion'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import ResponsiveImage from '@/components/responsive-image'
 import { apiFetch as fetch } from '@/lib/client-http.mjs'
 import { cleanContact, pageTitles } from '@/lib/site-content.mjs'
@@ -219,36 +219,7 @@ function GearLogo({ className = 'h-8 w-8', spin = false }) {
   </motion.div>
 }
 
-// ============== FUTURISTIC UI PRIMITIVES ==============
-function Eyebrow({ children, className = '' }) {
-  return (
-    <div className={`flex items-center gap-3 mb-6 ${className}`}>
-      <span className="font-tech text-[#22d3ee] text-sm select-none">//</span>
-      <span className="font-tech text-[#67e8f9] font-medium text-xs uppercase tracking-[0.32em]">{children}</span>
-      <span className="h-px w-20 bg-gradient-to-r from-[#22d3ee]/70 to-transparent" />
-    </div>
-  )
-}
-
-function SectionHead({ eyebrow, title, sub, center = false, no }) {
-  return (
-    <FadeIn>
-      <div className={`relative max-w-4xl mb-16 ${center ? 'mx-auto text-center' : ''}`}>
-        {no && (
-          <div aria-hidden className={`font-display font-bold text-stroke-faint leading-none text-[6.5rem] md:text-[8.5rem] absolute -top-14 md:-top-20 select-none pointer-events-none ${center ? 'left-1/2 -translate-x-1/2' : '-left-3'}`}>
-            {no}
-          </div>
-        )}
-        <div className="relative">
-          <Eyebrow className={center ? 'justify-center' : ''}>{eyebrow}</Eyebrow>
-          <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tight text-[#eef3f6] leading-[1.02]">{title}</h2>
-          {sub && <p className={`text-[#8b98a5] mt-5 text-lg font-light leading-relaxed max-w-2xl ${center ? 'mx-auto' : ''}`}>{sub}</p>}
-        </div>
-      </div>
-    </FadeIn>
-  )
-}
-
+// ============== SHARED UI PRIMITIVES ==============
 function Orbs() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -262,178 +233,7 @@ function Orbs() {
   )
 }
 
-function GridBg() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: 'linear-gradient(rgba(103,232,249,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(103,232,249,0.055) 1px, transparent 1px)',
-        backgroundSize: '54px 54px',
-        maskImage: 'radial-gradient(ellipse 90% 75% at 50% 25%, black 25%, transparent 78%)',
-        WebkitMaskImage: 'radial-gradient(ellipse 90% 75% at 50% 25%, black 25%, transparent 78%)',
-      }} />
-  )
-}
-
-function Noise() {
-  return <div aria-hidden className="noise-fx pointer-events-none absolute inset-0 opacity-[0.05]" />
-}
-
-/* ================= ROBOT / SERVO MOTION KIT ================= */
-function gearPath(teeth, rOut, rRoot) {
-  const pts = []
-  const step = (Math.PI * 2) / teeth
-  for (let i = 0; i < teeth; i++) {
-    const a = i * step
-    const segs = [
-      [rRoot, a], [rRoot, a + step * 0.30],
-      [rOut, a + step * 0.36], [rOut, a + step * 0.60],
-      [rRoot, a + step * 0.66], [rRoot, a + step],
-    ]
-    for (const [r, ang] of segs) pts.push(`${(r * Math.cos(ang)).toFixed(1)},${(r * Math.sin(ang)).toFixed(1)}`)
-  }
-  return `M${pts.join('L')}Z`
-}
-
-function Gear({ teeth = 14, size = 120, seconds = 14, reverse = false, className = '', stroke = '#22d3ee' }) {
-  const d = useMemo(() => gearPath(teeth, 96, 76), [teeth])
-  return (
-    <svg viewBox="-100 -100 200 200" width={size} height={size} className={className} aria-hidden>
-      <circle r="97" fill="none" stroke={stroke} strokeWidth="1" opacity="0.25" strokeDasharray="4 7" />
-      <g className="gear-rotor" style={{ animationDuration: `${seconds}s`, animationDirection: reverse ? 'reverse' : 'normal' }}>
-        <path d={d} fill="rgba(34,211,238,0.07)" stroke={stroke} strokeWidth={5} strokeLinejoin="round" />
-        {[0, 60, 120].map(a => (
-          <line key={a} x1="0" y1="-26" x2="0" y2="-64" stroke={stroke} strokeWidth={5} strokeLinecap="round" opacity="0.5" transform={`rotate(${a})`} />
-        ))}
-        <circle r="24" fill="#06090d" stroke={stroke} strokeWidth={5} />
-        <circle r="7" fill={stroke} opacity="0.9" />
-      </g>
-    </svg>
-  )
-}
-
-function GearTrain({ className = '' }) {
-  return (
-    <div className={`relative ${className}`} aria-hidden>
-      <div className="absolute inset-4 rounded-full border border-dashed border-cyan-400/20 animate-vew-spin-slow" />
-      <Gear teeth={20} size={230} seconds={26} className="absolute left-[2%] top-[4%]" />
-      <Gear teeth={13} size={152} seconds={16.9} reverse className="absolute right-[6%] top-[26%]" />
-      <Gear teeth={16} size={186} seconds={20.8} className="absolute left-[32%] bottom-[0%]" />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <span className="block h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_18px_4px_rgba(34,211,238,0.7)] animate-vew-blink" />
-      </div>
-    </div>
-  )
-}
-
-function Typewriter({ lines = [], className = '', speed = 30, hold = 2400 }) {
-  const [out, setOut] = useState('')
-  useEffect(() => {
-    let li = 0, ci = 0, timer = null, cancelled = false
-    const tick = () => {
-      if (cancelled) return
-      const line = lines[li] || ''
-      if (ci <= line.length) {
-        setOut(lines.slice(0, li).join('\n') + (li ? '\n' : '') + line.slice(0, ci))
-        ci++
-        timer = setTimeout(tick, speed)
-      } else {
-        li++; ci = 0
-        if (li >= lines.length) {
-          timer = setTimeout(() => { if (!cancelled) { li = 0; ci = 0; setOut(''); tick() } }, hold)
-        } else {
-          timer = setTimeout(tick, speed * 5)
-        }
-      }
-    }
-    tick()
-    return () => { cancelled = true; if (timer) clearTimeout(timer) }
-  }, [lines.join('|')])
-  return <pre className={className}>{out}<span className="terminal-caret">▊</span></pre>
-}
-
-function Scanline({ className = '' }) {
-  return <div aria-hidden className={`scanline ${className}`} />
-}
-
-function Counter({ to, decimals = 0, prefix = '', suffix = '', duration = 1.8 }) {
-  const ref = useRef(null)
-  const started = useRef(false)
-  const [val, setVal] = useState(0)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const io = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && !started.current) {
-        started.current = true
-        const t0 = performance.now()
-        const tick = now => {
-          const p = Math.min(1, (now - t0) / (duration * 1000))
-          setVal(to * (1 - Math.pow(1 - p, 3)))
-          if (p < 1) requestAnimationFrame(tick)
-        }
-        requestAnimationFrame(tick)
-        io.disconnect()
-      }
-    }, { threshold: 0.4 })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [to, duration])
-  return <span ref={ref}>{prefix}{val.toFixed(decimals)}{suffix}</span>
-}
-
-function GlowCard({ children, className = '' }) {
-  return (
-    <div className={`group relative rounded-2xl border border-white/10 bg-[#0a1016]/90 backdrop-blur-sm p-7 overflow-hidden transition-all duration-300 hover:border-[#22d3ee]/60 hover:shadow-[0_0_60px_-12px_rgba(34,211,238,0.45)] hover:-translate-y-1 ${className}`}>
-      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#22d3ee]/70 to-transparent opacity-60" />
-      <div className="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#22d3ee]/10 blur-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-      {children}
-    </div>
-  )
-}
-
-function SpotCard({ children, className = '', onClick }) {
-  const ref = useRef(null)
-  const onMove = (e) => {
-    const el = ref.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    el.style.setProperty('--mx', `${e.clientX - r.left}px`)
-    el.style.setProperty('--my', `${e.clientY - r.top}px`)
-  }
-  return (
-    <div ref={ref} onMouseMove={onMove} onClick={onClick} className={`spot-card ${className}`}>
-      {children}
-    </div>
-  )
-}
-
 // ============== APP-LEVEL CHROME ==============
-function ScrollProgress() {
-  const { scrollYProgress } = useScroll()
-  return <motion.div style={{ scaleX: scrollYProgress }} className="fixed top-0 left-0 right-0 h-[3px] z-[120] origin-left bg-gradient-to-r from-[#a5f3fc] via-[#22d3ee] to-[#0e7490]" />
-}
-
-function CapRow({ c, i }) {
-  const [open, setOpen] = useState(false)
-  const Icon = c.icon
-  return (
-    <div className="border-b border-white/10">
-      <button onClick={() => setOpen(!open)} aria-expanded={open} className="w-full flex items-center gap-5 md:gap-8 py-6 text-left group">
-        <span className="font-tech text-sm text-[#22d3ee] w-10 shrink-0">{String(i + 1).padStart(2, '0')}</span>
-        <span className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#22d3ee]/20 to-[#22d3ee]/5 border border-[#22d3ee]/30 hidden sm:flex items-center justify-center shrink-0">
-          <Icon className="h-5 w-5 text-[#67e8f9]" />
-        </span>
-        <span className="font-display text-2xl md:text-4xl font-bold text-[#eef3f6] group-hover:text-[#67e8f9] transition-colors flex-1 tracking-tight">{c.title}</span>
-        <span className={`font-display text-3xl text-[#22d3ee] leading-none transition-transform duration-300 ${open ? 'rotate-45' : ''}`}>+</span>
-      </button>
-      <div className={`grid transition-all duration-500 ease-out ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-        <div className="overflow-hidden">
-          <p className="pb-7 pl-[4.5rem] md:pl-[7rem] pr-4 text-[#8b98a5] text-lg font-light leading-relaxed max-w-2xl">{c.desc}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ============== NAV ==============
 function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
@@ -706,32 +506,25 @@ function ProductionTracker({ stages, canEdit, onUpdate }) {
 // ============== PRODUCTS/PRODUCT DETAIL/OTHER PAGES ==============
 function ProductsPage({ setRoute, cms }) {
   return (
-    <div className="bg-[#06090d] min-h-screen">
-      <div className="container mx-auto px-4 py-20">
-        <FadeIn>
-          <Eyebrow>Products</Eyebrow>
-          <h1 className="font-display text-5xl md:text-6xl font-bold text-[#eef3f6] mb-4 tracking-tight">Our <span className="text-servo">Products</span></h1>
-          <p className="text-[#8b98a5] mb-12 max-w-2xl text-lg font-light">Every gear we manufacture is built from your drawings and specifications.</p>
-        </FadeIn>
-        <motion.div initial="hidden" animate="visible" variants={stagger} className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {PRODUCTS.map((p, pi) => (
-            <motion.div key={p.key} variants={fadeUp} whileHover={{ y: -8 }}>
-              <SpotCard onClick={() => setRoute('product:' + p.key)}
-                className="overflow-hidden group cursor-pointer rounded-2xl bg-[#0a1016]/90 border border-white/10 hover:border-[#22d3ee]/60 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_50px_-12px_rgba(34,211,238,0.35)] h-full">
-                <div className="aspect-[4/3] overflow-hidden bg-black relative">
-                  <ResponsiveImage src={p.img} alt={p.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a1016]/70 via-transparent to-transparent" />
-                  <div className="absolute top-4 right-4 font-tech text-[10px] tracking-[0.2em] text-white/80 bg-black/45 backdrop-blur px-2.5 py-1 rounded-full border border-white/15">{String(pi + 1).padStart(2, '0')}</div>
-                </div>
-                <div className="p-6">
-                  <h3 className="font-display font-bold text-xl text-[#eef3f6] mb-2 group-hover:text-[#67e8f9] transition-colors">{p.title}</h3>
-                  <p className="text-sm text-[#8b98a5] leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
-                  <div className="mt-4 text-[#22d3ee] font-tech text-xs uppercase tracking-[0.2em] flex items-center gap-1.5 group-hover:gap-3 transition-all">Learn more <ArrowRight className="h-4 w-4" /></div>
-                </div>
-              </SpotCard>
-            </motion.div>
+    <div className="bg-white text-neutral-900 min-h-screen">
+      <div className="container mx-auto px-4 py-14 md:py-20">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Products</p>
+        <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight">Our products</h1>
+        <p className="mt-4 text-lg text-neutral-600 max-w-2xl">Every gear we manufacture is built from your drawings and specifications.</p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-10">
+          {PRODUCTS.map((p) => (
+            <button key={p.key} onClick={() => setRoute('product:' + p.key)} className="text-left bg-white rounded-2xl overflow-hidden border border-neutral-200">
+              <div className="aspect-[4/3] bg-neutral-100 overflow-hidden">
+                <Image src={p.img} alt={p.title} width={800} height={600} className="w-full h-full object-cover" loading="lazy" />
+              </div>
+              <div className="p-5">
+                <h3 className="font-display font-bold text-xl">{p.title}</h3>
+                <p className="text-sm text-neutral-500 mt-1">{cms?.productDescriptions?.[p.key] || p.apps.slice(0, 3).join(' · ')}</p>
+                <span className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium">Explore <ArrowRight className="h-4 w-4" /></span>
+              </div>
+            </button>
           ))}
-        </motion.div>
+        </div>
       </div>
     </div>
   )
@@ -739,60 +532,52 @@ function ProductsPage({ setRoute, cms }) {
 
 function ProductDetail({ productKey, setRoute, cms }) {
   const p = PRODUCTS.find(x => x.key === productKey)
-  if (!p) return <div className="bg-[#06090d] min-h-screen"><div className="container mx-auto px-4 py-16 text-white">Product not found.</div></div>
+  if (!p) return <div className="bg-white min-h-screen"><div className="container mx-auto px-4 py-16">Product not found.</div></div>
   return (
-    <div className="bg-[#06090d]">
-      <section className="relative text-white overflow-hidden">
-        <Orbs />
-        <div className="relative container mx-auto px-4 py-20 grid md:grid-cols-2 gap-12 items-center">
-          <FadeIn>
-            <button onClick={() => setRoute('products')} className="text-[#8b98a5] hover:text-[#67e8f9] text-sm mb-6 flex items-center transition-colors"><ArrowLeft className="h-4 w-4 mr-1" /> All Products</button>
-            <Eyebrow>Product</Eyebrow>
-            <h1 className="font-display text-5xl md:text-6xl font-bold mb-5 tracking-tight text-[#eef3f6]">{p.title}</h1>
-            <p className="text-[#8b98a5] mb-8 text-lg font-light leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
-            <Button size="lg" onClick={() => setRoute('rfq')} className="btn-servo font-tech uppercase tracking-[0.18em] text-sm h-12 px-8 rounded-full">Request a Quote <ArrowRight className="ml-2 h-4 w-4" /></Button>
-          </FadeIn>
-          <FadeIn delay={0.2}>
-            <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_80px_-20px_rgba(34,211,238,0.45)]">
-              <ResponsiveImage src={p.img} alt={p.title} className="w-full aspect-[4/3] object-cover" whileHover={{ scale: 1.02 }} transition={{ duration: 0.4 }} />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#06090d]/50 to-transparent" />
-            </div>
-          </FadeIn>
+    <div className="bg-white text-neutral-900">
+      <section className="container mx-auto px-4 py-14 md:py-20 grid md:grid-cols-2 gap-10 items-center">
+        <div>
+          <button onClick={() => setRoute('products')} className="text-neutral-500 hover:text-neutral-900 text-sm mb-6 flex items-center"><ArrowLeft className="h-4 w-4 mr-1" /> All Products</button>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Product</p>
+          <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">{p.title}</h1>
+          <p className="text-neutral-600 mb-8 text-lg leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
+          <Button size="lg" onClick={() => setRoute('rfq')} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700 h-12 px-8">Request a Quote <ArrowRight className="ml-2 h-4 w-4" /></Button>
+        </div>
+        <div className="rounded-2xl overflow-hidden bg-neutral-100">
+          <Image src={p.img} alt={p.title} width={900} height={675} className="w-full aspect-[4/3] object-cover" loading="lazy" />
         </div>
       </section>
-      <section className="border-y border-white/10 bg-[#080d13]">
+      <section className="border-y border-neutral-200 bg-neutral-100">
         <div className="container mx-auto px-4 py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
           {[['±0.002 mm', 'Grinding tolerance'], ['AGMA Q12', 'Gear quality grade'], ['1200 mm', 'Max outside diameter'], ['6+', 'Material families']].map(([v, l]) => (
-            <div key={l} className="flex items-center gap-3">
-              <div className="font-display text-2xl font-bold text-servo whitespace-nowrap">{v}</div>
-              <div className="font-tech text-[10px] uppercase tracking-[0.18em] text-[#8b98a5] leading-relaxed">{l}</div>
+            <div key={l}>
+              <div className="font-display text-2xl font-bold whitespace-nowrap">{v}</div>
+              <div className="text-xs uppercase tracking-[0.14em] text-neutral-500 mt-1">{l}</div>
             </div>
           ))}
         </div>
       </section>
-      <FadeIn>
-        <section className="container mx-auto px-4 py-16 grid md:grid-cols-3 gap-6">
-          {[
-            { title: 'Typical Applications', items: p.apps },
-            { title: 'Available Materials', items: ['Alloy Steel (4140, 4340, 8620)','Carbon Steel','Stainless Steel','Bronze','Cast Iron','Custom on request'] },
-            { title: 'Manufacturing Options', items: ['Gear cutting & hobbing','Precision grinding','Heat treatment','CMM inspection','Lapping & finishing'] }
-          ].map((col, i) => (
-            <GlowCard key={i}>
-              <h3 className="font-display font-bold text-[#eef3f6] mb-4 text-lg">{col.title}</h3>
-              <ul className="space-y-2.5 text-[#8b98a5] text-sm">{col.items.map(a => <li key={a} className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-[#22d3ee] mt-0.5 shrink-0" /> {a}</li>)}</ul>
-            </GlowCard>
-          ))}
-        </section>
-      </FadeIn>
-      <section className="container mx-auto px-4 pb-24">
+      <section className="container mx-auto px-4 py-14 grid md:grid-cols-3 gap-5">
+        {[
+          { title: 'Typical Applications', items: p.apps },
+          { title: 'Available Materials', items: ['Alloy Steel (4140, 4340, 8620)','Carbon Steel','Stainless Steel','Bronze','Cast Iron','Custom on request'] },
+          { title: 'Manufacturing Options', items: ['Gear cutting & hobbing','Precision grinding','Heat treatment','CMM inspection','Lapping & finishing'] }
+        ].map((col, i) => (
+          <div key={i} className="rounded-2xl border border-neutral-200 p-6">
+            <h3 className="font-display font-bold mb-4 text-lg">{col.title}</h3>
+            <ul className="space-y-2.5 text-neutral-600 text-sm">{col.items.map(a => <li key={a} className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-neutral-900 mt-0.5 shrink-0" /> {a}</li>)}</ul>
+          </div>
+        ))}
+      </section>
+      <section className="container mx-auto px-4 pb-20">
         <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
-          <h3 className="font-display font-bold text-[#eef3f6] text-2xl tracking-tight">Gallery</h3>
-          <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full border-white/25 text-white bg-white/5 hover:bg-white hover:text-black font-tech uppercase tracking-[0.18em] text-xs">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
+          <h3 className="font-display font-bold text-2xl tracking-tight">Gallery</h3>
+          <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {GALLERY.slice(0, 4).map(photo => (
-            <button key={photo.src} onClick={() => setRoute('gallery')} className="rounded-xl overflow-hidden border border-white/10 bg-black hover:border-[#22d3ee]/60 transition-colors cursor-pointer">
-              <ResponsiveImage src={photo.src} alt={photo.alt} className="aspect-square w-full h-full object-contain" whileHover={{ scale: 1.03 }} />
+            <button key={photo.src} onClick={() => setRoute('gallery')} className="rounded-xl overflow-hidden bg-neutral-100 aspect-square cursor-pointer">
+              <Image src={photo.src} alt={photo.alt} width={600} height={600} className="w-full h-full object-cover" loading="lazy" />
             </button>
           ))}
         </div>
@@ -811,32 +596,24 @@ function CapabilitiesPage() {
     { title: 'Prototype to Production', desc: 'From one-off prototype gears to full production runs.', img: HERO_IMG },
   ]
   return (
-    <div className="bg-[#06090d]">
-      <section className="relative text-white py-24 overflow-hidden">
-        <Orbs />
-        <GridBg />
-        <div className="relative container mx-auto px-4"><FadeIn>
-          <Eyebrow>Capabilities</Eyebrow>
-          <h1 className="font-display text-5xl md:text-6xl font-bold mb-5 tracking-tight text-[#eef3f6]">Manufacturing <span className="text-servo">Capabilities</span></h1>
-          <p className="text-[#8b98a5] max-w-2xl text-lg font-light">A complete in-house manufacturing suite from raw material through inspection.</p>
-        </FadeIn></div>
+    <div className="bg-white text-neutral-900">
+      <section className="container mx-auto px-4 py-14 md:py-20">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Capabilities</p>
+        <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">Manufacturing capabilities</h1>
+        <p className="text-neutral-600 max-w-2xl text-lg">A complete in-house manufacturing suite from raw material through inspection.</p>
       </section>
-      <section className="container mx-auto px-4 pb-24 space-y-16">
+      <section className="container mx-auto px-4 pb-20 space-y-14">
         {sections.map((s, i) => (
-          <FadeIn key={i}>
-            <div className={`grid md:grid-cols-2 gap-10 items-center ${i % 2 ? 'md:[&>div:first-child]:order-2' : ''}`}>
-              <div className="relative rounded-2xl overflow-hidden border border-white/10 group">
-                <ResponsiveImage src={s.img} alt={s.title} className="w-full aspect-video object-cover" whileHover={{ scale: 1.04 }} transition={{ duration: 0.6 }} />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#06090d]/70 via-transparent to-transparent" />
-                <div className="absolute inset-0 rounded-2xl border border-[#22d3ee]/0 group-hover:border-[#22d3ee]/50 transition-colors duration-500" />
-              </div>
-              <div>
-                <div className="font-display text-7xl md:text-8xl font-bold text-stroke-faint leading-none mb-5 select-none" aria-hidden>{String(i + 1).padStart(2, '0')}</div>
-                <h2 className="font-display text-3xl md:text-4xl font-bold text-[#eef3f6] mb-4 tracking-tight">{s.title}</h2>
-                <p className="text-[#8b98a5] text-lg leading-relaxed font-light">{s.desc}</p>
-              </div>
+          <div key={i} className={`grid md:grid-cols-2 gap-8 items-center ${i % 2 ? 'md:[&>div:first-child]:order-2' : ''}`}>
+            <div className="rounded-2xl overflow-hidden bg-neutral-100">
+              <Image src={s.img} alt={s.title} width={900} height={560} className="w-full aspect-video object-cover" loading="lazy" />
             </div>
-          </FadeIn>
+            <div>
+              <div className="text-sm font-semibold text-neutral-400 mb-3">{String(i + 1).padStart(2, '0')}</div>
+              <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-3">{s.title}</h2>
+              <p className="text-neutral-600 text-lg leading-relaxed">{s.desc}</p>
+            </div>
+          </div>
         ))}
       </section>
     </div>
@@ -858,33 +635,30 @@ function GalleryPage() {
   }, [lightbox])
   const active = lightbox === null ? null : GALLERY[lightbox]
   return (
-    <div className="bg-[#06090d] min-h-screen">
-    <div className="container mx-auto px-4 py-20">
-      <FadeIn>
-        <Eyebrow>Gallery</Eyebrow>
-        <h1 className="font-display text-5xl font-bold text-[#eef3f6] mb-4 tracking-tight">Inside our <span className="text-servo">workshop</span></h1>
-        <p className="text-[#8b98a5] mb-12 text-lg max-w-2xl font-light">Photos of our equipment, machining work, and gear components. Click any photo to enlarge it.</p>
-      </FadeIn>
-      <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="bg-white text-neutral-900 min-h-screen">
+    <div className="container mx-auto px-4 py-14 md:py-20">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Gallery</p>
+      <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">Inside our workshop</h1>
+      <p className="text-neutral-600 mb-10 text-lg max-w-2xl">Photos of our equipment, machining work, and gear components. Click any photo to enlarge it.</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {GALLERY.map((photo, i) => (
-          <motion.figure key={photo.src} variants={fadeUp} whileHover={{ y: -3 }} onClick={() => setLightbox(i)} className="rounded-2xl overflow-hidden bg-[#0a1016]/90 border border-white/10 backdrop-blur-sm cursor-pointer hover:border-[#22d3ee]/60 hover:shadow-[0_0_40px_-12px_rgba(34,211,238,0.4)] transition-all">
-            <div className="aspect-square bg-black"><ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" /></div>
-            <figcaption className="px-3 py-2.5 text-sm font-medium text-[#8b98a5]">{photo.caption}</figcaption>
-          </motion.figure>
+          <figure key={photo.src} onClick={() => setLightbox(i)} className="rounded-2xl overflow-hidden bg-white border border-neutral-200 cursor-pointer">
+            <div className="aspect-square bg-neutral-100"><Image src={photo.src} alt={photo.alt} width={600} height={600} className="w-full h-full object-cover" loading="lazy" /></div>
+            <figcaption className="px-3 py-2.5 text-sm font-medium text-neutral-500">{photo.caption}</figcaption>
+          </figure>
         ))}
-      </motion.div>
+      </div>
       <AnimatePresence>
         {active && createPortal((
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setLightbox(null)}
-            className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div onClick={() => setLightbox(null)}
+            className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4">
             <button aria-label="Close" onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition">
               <X className="h-6 w-6" />
             </button>
             <button aria-label="Previous photo" onClick={e => { e.stopPropagation(); setLightbox((lightbox - 1 + GALLERY.length) % GALLERY.length) }} className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition">
               <ArrowLeft className="h-6 w-6" />
             </button>
-            <motion.img key={active.src} src={active.src} alt={active.alt} onClick={e => e.stopPropagation()}
-              initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.25 }}
+            <img key={active.src} src={active.src} alt={active.alt} onClick={e => e.stopPropagation()}
               className="max-h-[82vh] max-w-[94vw] rounded-xl shadow-2xl object-contain" />
             <button aria-label="Next photo" onClick={e => { e.stopPropagation(); setLightbox((lightbox + 1) % GALLERY.length) }} className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition">
               <ArrowRight className="h-6 w-6" />
@@ -892,7 +666,7 @@ function GalleryPage() {
             <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/90 text-sm bg-white/10 rounded-full px-4 py-1.5 whitespace-nowrap">
               {active.caption} · {lightbox + 1} of {GALLERY.length}
             </div>
-          </motion.div>
+          </div>
         ), document.body)}
       </AnimatePresence>
     </div>
@@ -902,37 +676,25 @@ function GalleryPage() {
 
 function AboutPage({ cms }) {
   return (
-    <div className="bg-[#06090d]">
-      <section className="relative py-24 overflow-hidden">
-        <Orbs />
-        <div className="relative container mx-auto px-4 max-w-4xl">
-          <FadeIn>
-            <Eyebrow>About us</Eyebrow>
-            <h1 className="font-display text-5xl md:text-6xl font-bold text-[#eef3f6] mb-10 tracking-tight">{cms?.aboutTitle || 'About Vijaya Engineering Works'}</h1>
-          </FadeIn>
-          <FadeIn delay={0.1}>
-            <div className="relative rounded-2xl overflow-hidden border border-white/10 mb-10">
-              <ResponsiveImage src={IMG_2} alt="Precision gears manufactured by Vijaya Engineering Works" className="w-full aspect-[21/9] object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#06090d]/80 via-transparent to-transparent" />
+    <div className="bg-white text-neutral-900">
+      <section className="container mx-auto px-4 py-14 md:py-20 max-w-4xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">About us</p>
+        <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-10">{cms?.aboutTitle || 'About Vijaya Engineering Works'}</h1>
+        <div className="rounded-2xl overflow-hidden bg-neutral-100 mb-10">
+          <Image src={IMG_2} alt="Precision gears manufactured by Vijaya Engineering Works" width={1200} height={514} className="w-full aspect-[21/9] object-cover" loading="lazy" />
+        </div>
+        <p className="text-neutral-600 text-lg leading-relaxed whitespace-pre-line">{cms?.aboutText}</p>
+        <div className="grid grid-cols-3 gap-4 mt-12">
+          {[
+            { v: '30+', l: 'Years' },
+            { v: 'Q12', l: 'AGMA grade' },
+            { v: '1200 mm', l: 'Max OD' },
+          ].map((s, i) => (
+            <div key={i} className="text-center rounded-2xl border border-neutral-200 p-5">
+              <div className="font-display text-2xl md:text-3xl font-bold">{s.v}</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 mt-1">{s.l}</div>
             </div>
-          </FadeIn>
-          <FadeIn delay={0.15}>
-            <p className="text-[#cfd8de] text-lg leading-relaxed whitespace-pre-line font-light">{cms?.aboutText}</p>
-          </FadeIn>
-          <FadeIn delay={0.2}>
-            <div className="grid grid-cols-3 gap-4 mt-12">
-              {[
-                { v: <Counter to={30} suffix="+" />, l: 'Years' },
-                { v: 'Q12', l: 'AGMA grade' },
-                { v: <Counter to={1200} suffix=" mm" />, l: 'Max OD' },
-              ].map((s, i) => (
-                <GlowCard key={i} className="text-center p-5">
-                  <div className="font-display text-2xl md:text-3xl font-bold text-servo">{s.v}</div>
-                  <div className="font-tech text-[11px] uppercase tracking-[0.18em] text-[#8b98a5] mt-1">{s.l}</div>
-                </GlowCard>
-              ))}
-            </div>
-          </FadeIn>
+          ))}
         </div>
       </section>
     </div>
@@ -948,42 +710,38 @@ function ContactPage({ cms }) {
     window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent('Website enquiry from ' + contact.name)}&body=${encodeURIComponent(contact.message + '\n\nFrom: ' + contact.name + '\nEmail: ' + contact.email)}`
   }
   const infoRows = [
-    { icon: Phone, label: 'Phone', body: cms?.phone ? <a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="text-white hover:text-[#67e8f9] transition-colors">{cms.phone}</a> : 'Please use a quote request to contact us.' },
-    { icon: Mail, label: 'Email', body: contactEmail ? <a href={`mailto:${contactEmail}`} className="break-all text-white hover:text-[#67e8f9] transition-colors">{contactEmail}</a> : 'Contact email is being updated.' },
-    { icon: MapPin, label: 'Address', body: <>{cms?.address}<div><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="text-[#22d3ee] hover:text-[#67e8f9]">View our location on Google Maps</a></div></> },
-    { icon: Globe2, label: 'Website', body: <a href={COMPANY_URL} className="break-all text-white hover:text-[#67e8f9] transition-colors">vijayaengineeringworks.com</a> },
+    { icon: Phone, label: 'Phone', body: cms?.phone ? <a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:underline">{cms.phone}</a> : 'Please use a quote request to contact us.' },
+    { icon: Mail, label: 'Email', body: contactEmail ? <a href={`mailto:${contactEmail}`} className="break-all hover:underline">{contactEmail}</a> : 'Contact email is being updated.' },
+    { icon: MapPin, label: 'Address', body: <>{cms?.address}<div><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">View our location on Google Maps</a></div></> },
+    { icon: Globe2, label: 'Website', body: <a href={COMPANY_URL} className="break-all hover:underline">vijayaengineeringworks.com</a> },
     { icon: Building2, label: 'Hours', body: cms?.hours },
   ]
   return (
-    <div className="bg-[#06090d] min-h-screen">
-    <div className="container mx-auto px-4 py-20">
-      <FadeIn>
-        <Eyebrow>Contact</Eyebrow>
-        <h1 className="font-display text-5xl font-bold text-[#eef3f6] mb-4 tracking-tight">Contact <span className="text-servo">Us</span></h1>
-        <p className="text-[#8b98a5] mb-10 text-lg font-light max-w-2xl">Tell us about your project — we reply to every enquiry.</p>
-      </FadeIn>
+    <div className="bg-white text-neutral-900 min-h-screen">
+    <div className="container mx-auto px-4 py-14 md:py-20">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Contact</p>
+      <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">Contact us</h1>
+      <p className="text-neutral-600 mb-10 text-lg max-w-2xl">Tell us about your project — we reply to every enquiry.</p>
       <div className="grid md:grid-cols-2 gap-8">
-        <FadeIn><div className="space-y-3">
+        <div className="space-y-3">
           {infoRows.map((r, i) => (
-            <div key={i} className="flex items-start gap-4 rounded-2xl border border-white/10 bg-[#0a1016]/90 backdrop-blur-sm p-5 hover:border-[#22d3ee]/50 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#22d3ee]/25 to-[#22d3ee]/5 border border-[#22d3ee]/40 flex items-center justify-center shrink-0">
-                <r.icon className="h-5 w-5 text-[#67e8f9]" />
+            <div key={i} className="flex items-start gap-4 rounded-2xl border border-neutral-200 p-5">
+              <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center shrink-0">
+                <r.icon className="h-5 w-5 text-neutral-900" />
               </div>
-              <div className="min-w-0"><div className="font-tech text-[11px] uppercase tracking-[0.18em] text-[#8b98a5] mb-1">{r.label}</div><div className="text-[#cfd8de]">{r.body}</div></div>
+              <div className="min-w-0"><div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 mb-1">{r.label}</div><div className="text-neutral-700">{r.body}</div></div>
             </div>
           ))}
-        </div></FadeIn>
-        <FadeIn delay={0.1}>
-          <div className="rounded-2xl border border-white/10 bg-[#0a1016]/90 backdrop-blur-sm p-6 md:p-8">
-            <form onSubmit={composeContact} className="space-y-4">
-              <label className="block text-sm text-[#cfd8de]">Name<Input required placeholder="Your name" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} className="mt-1.5" /></label>
-              <label className="block text-sm text-[#cfd8de]">Email<Input required type="email" placeholder="you@example.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} className="mt-1.5" /></label>
-              <label className="block text-sm text-[#cfd8de]">Message<Textarea required placeholder="How can we help?" rows={4} value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} className="mt-1.5" /></label>
-              <Button disabled={!contactEmail} className="btn-servo font-tech uppercase tracking-[0.18em] text-sm w-full rounded-full h-12">Compose email</Button>
-              <p className="text-xs text-[#8b98a5]">Opens your email app so you can review and send your message.</p>
-            </form>
-          </div>
-        </FadeIn>
+        </div>
+        <div className="rounded-2xl border border-neutral-200 p-6 md:p-8 h-fit">
+          <form onSubmit={composeContact} className="space-y-4">
+            <label className="block text-sm">Name<Input required placeholder="Your name" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} className="mt-1.5" /></label>
+            <label className="block text-sm">Email<Input required type="email" placeholder="you@example.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} className="mt-1.5" /></label>
+            <label className="block text-sm">Message<Textarea required placeholder="How can we help?" rows={4} value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} className="mt-1.5" /></label>
+            <Button disabled={!contactEmail} className="w-full rounded-full bg-neutral-900 text-white hover:bg-neutral-700 h-12">Compose email</Button>
+            <p className="text-xs text-neutral-500">Opens your email app so you can review and send your message.</p>
+          </form>
+        </div>
       </div>
     </div>
     </div>
@@ -1234,9 +992,10 @@ function UserManagement({ auth, onImpersonate }) {
   const [newPw, setNewPw] = useState('')
 
   async function toggle(u) {
-    if (isStaff(u)) { toast.error("Can't disable admin"); return }
+    if (u.id === auth.user?.id) { toast.error("You can't disable your own account"); return }
+    if (isStaff(u) && auth.user?.role !== 'owner') { toast.error('Only the owner can disable staff accounts'); return }
     const result = await api().patch(`/api/admin/users/${u.id}/toggle`, {}); if (result.error) return
-    toast.success(u.isActive ? 'User disabled' : 'User re-enabled')
+    toast.success(u.isActive ? 'Account disabled' : 'Account re-enabled')
     load()
   }
   async function doReset() {
@@ -1251,10 +1010,11 @@ function UserManagement({ auth, onImpersonate }) {
     if (result.error) return
     toast.success('Customer updated'); setEditTarget(null); load()
   }
-  async function deleteCustomer(u) {
-    if (!window.confirm(`Delete the customer account for ${u.email}? Sign-in will be disabled and RFQ history retained.`)) return
+  async function deleteUser(u) {
+    if (u.id === auth.user?.id) { toast.error("You can't delete your own account"); return }
+    if (!window.confirm(`Delete the account for ${u.email}? Sign-in will be disabled and the account will be removed from this list. RFQ history is retained.`)) return
     const result = await api().delete(`/api/admin/users/${u.id}`)
-    if (!result.error) { toast.success('Customer account removed'); load() }
+    if (!result.error) { toast.success('Account removed'); load() }
   }
   async function impersonate(u) {
     if (isStaff(u)) { toast.error("Can't impersonate another admin"); return }
@@ -1276,7 +1036,15 @@ function UserManagement({ auth, onImpersonate }) {
             <Pencil className="h-3 w-3 mr-1" />Reset
           </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditTarget(u)}>Edit</Button>
-          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteCustomer(u)}>Delete</Button>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteUser(u)}>Delete</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
+            {u.isActive ? 'Disable' : 'Enable'}
+          </Button>
+        </>
+      )}
+      {u.role !== 'customer' && auth.user?.role === 'owner' && u.id !== auth.user?.id && (
+        <>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteUser(u)}>Delete</Button>
           <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
             {u.isActive ? 'Disable' : 'Enable'}
           </Button>
