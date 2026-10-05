@@ -36,26 +36,20 @@ export function CompanyContacts({auth,company}) {
 
 export function CompanyInvitation({token,auth,onDone,onSignIn}) {
   const [details,setDetails]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false)
-  const [form,setForm]=useState({firstName:'',lastName:'',password:'',confirm:''})
   useEffect(()=>{let cancelled=false;request('/api/company-invitations/inspect','POST',{token}).then(d=>{if(!cancelled)setDetails(d)}).catch(e=>{if(!cancelled)setError(e.message)});return()=>{cancelled=true}},[token])
-  const alreadySignedIn=auth.user?.email===details?.email
+  const signedInEmail=(auth.user?.email||'').toLowerCase()
+  const matches=signedInEmail&&details&&signedInEmail===details.email.toLowerCase()
   async function accept(e){e.preventDefault();setBusy(true);setError('');try{
-    if(!details.existingAccount&&form.password!==form.confirm){setError('Passwords must match');return}
-    if(details.existingAccount&&!alreadySignedIn){await auth.login(details.email,form.password)}
-    await request('/api/company-invitations/accept','POST',{token,...form})
-    if(!details.existingAccount)await auth.login(details.email,form.password)
+    await request('/api/company-invitations/accept','POST',{token})
     toast.success('Company access enabled');onDone()
   }catch(e){setError(e.message)}finally{setBusy(false)}}
   return <div className="max-w-lg mx-auto px-4 py-16"><Card><CardContent className="p-6 space-y-4"><h1 className="text-2xl font-bold">Your company invitation</h1>
     {error&&<p role="alert" className="text-red-600">{error}</p>}
     {!details&&!error&&<p>Checking invitation…</p>}
-    {details&&<form onSubmit={accept} className="space-y-4"><p>Join <strong>{details.company}</strong> as <strong className="break-all">{details.email}</strong>.</p><p className="text-sm text-slate-600">You will be able to view this company's orders. {details.existingAccount?'Use your existing account; its password will not be changed.':'This email invitation verifies your address. Set your own password below.'}</p>
-      {!details.existingAccount&&['firstName','lastName'].map((k,i)=><label key={k} className="block text-sm">{i?'Last name':'First name'}<Input required autoComplete={k==='firstName'?'given-name':'family-name'} value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})}/></label>)}
-      {(!details.existingAccount||!alreadySignedIn)&&<label className="block text-sm">{details.existingAccount?'Existing password':'Create password'}<Input required type="password" autoComplete={details.existingAccount?'current-password':'new-password'} minLength={details.existingAccount?1:8} maxLength={128} value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/></label>}
-      {!details.existingAccount&&<label className="block text-sm">Confirm password<Input required type="password" autoComplete="new-password" value={form.confirm} onChange={e=>setForm({...form,confirm:e.target.value})}/></label>}
-      <Button disabled={busy} type="submit">{busy?'Accepting…':'Accept company invitation'}</Button>
-    </form>}
-    <Button variant="link" onClick={onSignIn}>Go to sign in / password recovery</Button><p className="text-xs text-slate-500">If you need to recover or verify an existing account, do that first, then reopen this invitation email.</p>
+    {details&&<div className="space-y-4"><p>Join <strong>{details.company}</strong> as <strong className="break-all">{details.email}</strong>.</p><p className="text-sm text-slate-600">You will be able to view this company's orders.</p>
+      {!matches&&<div className="rounded-xl bg-neutral-100 p-4 text-sm text-neutral-700">Please sign in with <strong className="break-all">{details.email}</strong> first, then accept this invitation.<div className="mt-3"><Button onClick={onSignIn}>Go to sign in</Button></div></div>}
+      {matches&&<form onSubmit={accept}><Button disabled={busy} type="submit">{busy?'Accepting…':'Accept company invitation'}</Button></form>}
+    </div>}
   </CardContent></Card></div>
 }
 

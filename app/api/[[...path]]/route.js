@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
 import { MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
-import { HttpError, text, email, password, hashPassword, signToken, getAuthUser, isStaff, isOwner, safeUser, safeRfq, canReadRfq, rateLimit, ownerEmail } from '@/lib/server/security.mjs'
-import { handleAuth } from '@/lib/server/auth.mjs'
-import { googleAuthUrl, handleGoogleCallback } from '@/lib/server/oauth-google.mjs'
+import { HttpError, text, email, isStaff, isOwner, roleFor, safeUser, safeRfq, canReadRfq, rateLimit, ownerEmail } from '@/lib/server/security.mjs'
+import { resolveUser, setImpersonation, clearImpersonation } from '@/lib/server/clerk-auth.mjs'
 import { handleManagement } from '@/lib/server/management.mjs'
 import { handleCompanyOrders } from '@/lib/server/company-orders.mjs'
 import { deliverRfqReceipt } from '@/lib/server/business-email.mjs'
-import { isSameOriginMutation, readCookie, setSession, sessionName, ownerSessionName } from '@/lib/server/session.mjs'
+import { isSameOriginMutation } from '@/lib/server/session.mjs'
 import { boundedBody, insertOnce, validateUpload } from '@/lib/server/request-safety.mjs'
 import { pageQuery, literalSearch } from '@/lib/server/pagination.mjs'
 
@@ -145,41 +144,12 @@ async function dispatchRequest(request, ctx) {
 
     if (route === '' || route === 'health') { await db.command({ ping: 1 }, { maxTimeMS: 5000 }); return json({ status: 'ok', service: 'VEW API' }) }
 
-    // Google OAuth sign-in (GET only; the callback sets the session cookie and redirects home).
-    if (route === 'auth/google' && method === 'GET') {
-      return NextResponse.redirect(googleAuthUrl())
-    }
-    if (route === 'auth/google/callback' && method === 'GET') {
-      try {
-        const { token } = await handleGoogleCallback(request, db)
-        const response = NextResponse.redirect(new URL('/', request.url))
-        setSession(response, token)
-        return response
-      } catch (error) {
-        const message = error instanceof HttpError ? error.message : 'Google sign-in failed. Please try again.'
-        return NextResponse.redirect(new URL(`/?oauth_error=${encodeURIComponent(message)}`, request.url))
-      }
-    }
-
-    const authentication = await handleAuth(route, request, db)
-    if (authentication) {
-      const { token, ...data } = authentication.data
-      const response = json(data, authentication.status)
-      if (token) { setSession(response, token); setSession(response, '', ownerSessionName()) }
-      return response
-    }
-    const me = await getAuthUser(request, db)
-    if (route === 'auth/logout' && method === 'POST') {
-      let actor = me
-      if (readCookie(request, ownerSessionName())) actor = await getAuthUser(new Request(request.url, { headers: { cookie: `${sessionName()}=${readCookie(request, ownerSessionName())}` } }), db)
-      if (actor && !actor._impersonatedBy) await db.collection('users').updateOne({ id: actor.id }, { $inc: { sessionVersion: 1 } })
-      return setSession(setSession(json({ success: true }), ''), '', ownerSessionName())
-    }
+    // Identity is verified by Clerk; local records carry roles and business data.
+    const me = await resolveUser(request, db)
     if (route === 'auth/exit-impersonation' && method === 'POST') {
-      const token = readCookie(request, ownerSessionName())
-      const owner = await getAuthUser(new Request(request.url, { headers: { cookie: `${sessionName()}=${token}` } }), db)
-      if (!isOwner(owner) || owner._impersonatedBy) throw new HttpError(403, 'Sign in again as the owner')
-      return setSession(setSession(json({ user: owner }), token), '', ownerSessionName())
+      const owner = me?._impersonatedBy ? await db.collection('users').findOne({ email: me._impersonatedBy }) : me
+      if (!owner || roleFor(owner) !== 'owner') throw new HttpError(403, 'Sign in again as the owner')
+      return clearImpersonation(json({ user: safeUser(owner) }))
     }
     if (me && !['GET','HEAD'].includes(method)) await rateLimit(db, `write:${me.id}`, 120, 60000)
     const companyOrders = await handleCompanyOrders(route, request, db, me)
@@ -503,22 +473,7 @@ async function dispatchRequest(request, ctx) {
       return json({ success: true, isActive: !u.isActive })
     }
 
-    if (route.match(/^admin\/users\/[^/]+\/reset-password$/) && method === 'POST') {
-      if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
-      const id = path[2]
-      const b = await request.json()
-      if (!b.password || b.password.length < 8) return json({ error: 'Password must be at least 8 characters' }, 400)
-      const u = await db.collection('users').findOne({ id })
-      if (!u) return json({ error: 'Not found' }, 404)
-      if (u.role !== 'customer' || u.email === ownerEmail()) return json({ error: 'Staff passwords must be reset by email' }, 403)
-      const changed = await db.collection('users').updateOne({ id, role: 'customer', email: { $ne: ownerEmail() } }, {
-        $set: { passwordHash: await hashPassword(password(b.password)) }, $inc: { sessionVersion: 1 },
-        $unset: { passwordResetTokenHash: '', passwordResetExpiresAt: '', passwordResetSentAt: '' },
-      })
-      if (!changed.matchedCount) throw new HttpError(403, 'Account role changed; refresh and try again')
-      mockSendEmail({ to: u.email, subject: 'VEW · Password reset by admin', body: `Your VEW account password has been reset by an administrator.` })
-      return json({ success: true })
-    }
+    // Password resets are handled by Clerk; local password hashes are no longer used.
 
     if (route.match(/^admin\/users\/[^/]+\/impersonate$/) && method === 'POST') {
       if (!isStaff(me)) return json({ error: 'Admin only' }, 403)
@@ -526,9 +481,8 @@ async function dispatchRequest(request, ctx) {
       const u = await db.collection('users').findOne({ id })
       if (!u) return json({ error: 'Not found' }, 404)
       if (!isOwner(me) || me._impersonatedBy || u.role !== 'customer' || u.email === me.email || !u.emailVerifiedAt || !u.isActive) return json({ error: 'Only the owner may view verified customer accounts' }, 403)
-      const token = signToken({ userId: u.id, role: u.role, sessionVersion: u.sessionVersion || 0, ownerSessionVersion: (await db.collection('users').findOne({ id: me.id })).sessionVersion || 0, impersonatedBy: me.id, impersonatedByEmail: me.email })
       const safe = safeUser(u)
-      return setSession(setSession(json({ user: { ...safe, _impersonatedBy: me.email }, impersonating: true }), token), readCookie(request), ownerSessionName())
+      return setImpersonation(json({ user: { ...safe, _impersonatedBy: me.email }, impersonating: true }), u.id, me)
     }
 
     // Admin stats

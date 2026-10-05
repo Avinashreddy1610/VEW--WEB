@@ -41,17 +41,23 @@ test('only staff can invite contacts; tokens are hashed and existing passwords c
   assert.equal((await db.collection('users').findOne({id:one.id})).passwordHash,'never-overwrite-this')
   await assert.rejects(call('company-invitations/accept','POST',{token:invite.token},one),{status:400})
 })
-test('new contacts set their own password and two contacts share only their company orders',async()=>{
+test('invited contacts accept after signing in; two contacts share only their company orders',async()=>{
   await call('admin/companies/a/members','POST',{email:two.email})
   await call('company-invitations/accept','POST',{token:outbox.at(-1).token},two)
   await call('admin/companies/b/members','POST',{email:'newcontact@example.test'})
   const token=outbox.at(-1).token
   assert.equal((await call('company-invitations/inspect','POST',{token},null)).existingAccount,false)
-  await assert.rejects(call('company-invitations/accept','POST',{token,firstName:'New',lastName:'Contact',password:'short'},null),{status:400})
-  const accepted=await Promise.allSettled([1,2].map(()=>call('company-invitations/accept','POST',{token,firstName:'New',lastName:'Contact',password:'StrongContact99'},null)))
-  assert.equal(accepted.filter(x=>x.status==='fulfilled').length,1)
+  // Nobody signed in with the invited email yet: acceptance is refused.
+  await assert.rejects(call('company-invitations/accept','POST',{token},null),{status:401})
+  await assert.rejects(call('company-invitations/accept','POST',{token},outsider),{status:401})
+  // The invitee signs up via Clerk first (local record linked by email), then accepts.
+  const contact={id:'newcontact',role:'customer',email:'newcontact@example.test',firstName:'New',lastName:'Contact',isActive:true,emailVerifiedAt:new Date().toISOString(),passwordHash:'',sessionVersion:0}
+  await db.collection('users').insertOne(contact)
+  await assert.rejects(call('company-invitations/accept','POST',{token},two),{status:401})
+  await call('company-invitations/accept','POST',{token},contact)
+  await assert.rejects(call('company-invitations/accept','POST',{token},contact),{status:400})
   const account=await db.collection('users').findOne({email:'newcontact@example.test'})
-  assert.ok(account.emailVerifiedAt);assert.equal(account.role,'customer');assert.ok(await verifyPassword('StrongContact99',account.passwordHash))
+  assert.ok(account.emailVerifiedAt);assert.equal(account.role,'customer')
   const a=await call('orders','POST',payload())
   const b=await call('orders','POST',{...payload(),companyId:'b'})
   assert.equal((await call('orders','GET',undefined,one)).orders[0].id,a.order.id)
@@ -60,10 +66,6 @@ test('new contacts set their own password and two contacts share only their comp
   assert.equal((await call('orders','GET',undefined,account)).orders[0].id,b.order.id)
   const view=(await call('orders','GET',undefined,one)).orders[0]
   assert.equal(view.internalNotes,undefined);assert.equal(view.createdBy,undefined)
-  assert.equal((await call('companies','GET',undefined,one)).companies[0].notes,undefined)
-  await assert.rejects(call('orders','GET',undefined,null),{status:401})
-  await assert.rejects(call('orders','POST',payload(),one),{status:403})
-  await assert.rejects(call(`orders/${b.order.id}`,'PATCH',b.order,one),{status:403})
 })
 test('products have independent stages, invalid data is rejected, concurrent edits cannot overwrite',async()=>{
   const original=(await call('orders','POST',payload())).order

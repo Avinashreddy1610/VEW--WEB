@@ -1,6 +1,7 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth as useClerkAuth, useClerk, SignIn, SignUp } from '@clerk/nextjs'
 import { apiFetch as fetch } from '@/lib/client-http.mjs'
 import { cleanContact, pageTitles } from '@/lib/site-content.mjs'
 import { ListPager, usePagedList } from '@/components/paged-list'
@@ -20,6 +21,19 @@ import { CompanyOrders, CompanyInvitation } from '@/components/company-orders'
 import { createPortal } from 'react-dom'
 import Image from 'next/image'
 const isStaff = user => ['owner', 'manager'].includes(user?.role)
+
+// Light, minimal Clerk appearance matching the site theme.
+const clerkAppearance = {
+  variables: { colorPrimary: '#171717', colorText: '#171717', colorTextSecondary: '#525252', borderRadius: '12px' },
+  elements: {
+    card: 'shadow-none border border-neutral-200 rounded-3xl',
+    headerTitle: 'font-display',
+    formButtonPrimary: 'bg-neutral-900 hover:bg-neutral-700 rounded-full h-12 text-sm normal-case tracking-normal',
+    socialButtonsBlockButton: 'rounded-full h-12 border-neutral-300',
+    formFieldInput: 'rounded-xl h-12',
+    footerActionLink: 'text-neutral-900 font-semibold',
+  },
+}
 import {
   Cog, Wrench, Factory, Ruler, ShieldCheck, Upload, FileText, Trash2, ArrowRight, ArrowLeft,
   CheckCircle2, Menu, X, Mail, Phone, MapPin, Globe2, ClipboardList, Search,
@@ -138,51 +152,48 @@ const SPEC_FIELDS = {
 function specGroup(t) { if (!t) return 'custom'; if (t.includes('Bevel')) return 'bevel'; if (t.includes('Helical')) return 'helical'; if (t === 'Spur Gear') return 'spur'; return 'custom' }
 
 // ============== AUTH HOOK ==============
+// Auth state is owned by Clerk; the local user record (roles, business data)
+// is fetched from /api/auth/me once Clerk reports a signed-in session.
 function useAuth() {
+  const { isLoaded: clerkLoaded, isSignedIn } = useClerkAuth()
+  const { signOut } = useClerk()
   const [user, setUser] = useState(null)
-  const [sessionKey, setSessionKey] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  const refresh = useCallback(async () => {
+    if (!isSignedIn) { setUser(null); return null }
+    try {
+      const r = await fetch('/api/auth/me')
+      const d = await r.json()
+      setUser(d.user || null)
+      return d.user || null
+    } catch { setUser(null); return null }
+  }, [isSignedIn])
+
   useEffect(() => {
-    // Retire legacy browser-readable credentials. The server owns the session cookie.
-    try { localStorage.removeItem('vew_token'); localStorage.removeItem('vew_admin_token') } catch { /* Storage may be disabled; cookie sign-in still works. */ }
-    const ctrl = new AbortController()
-    const timer = setTimeout(() => ctrl.abort(), 10000)
-    fetch('/api/auth/me', { signal: ctrl.signal })
-      .then(r => r.json()).then(d => { if (d.user) { setUser(d.user); setSessionKey(d.user.id) } else setSessionKey(null) })
-      .catch(() => { setSessionKey(null); setUser(null) })
-      .finally(() => { clearTimeout(timer); setLoading(false) })
-    return () => { clearTimeout(timer); ctrl.abort() }
-  }, [])
-  const login = async (identifier, password) => {
-    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, password }) })
-    const d = await r.json()
-    if (!r.ok) { const error = new Error(d.error); error.code = d.code; throw error }
-    setSessionKey(d.user.id); setUser(d.user); return d.user
-  }
-  const signup = async (data) => {
-    const r = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    const d = await r.json()
-    if (!r.ok) throw new Error(d.error)
-    return d
-  }
+    if (!clerkLoaded) return
+    setLoading(true)
+    refresh().finally(() => setLoading(false))
+  }, [clerkLoaded, isSignedIn, refresh])
+
   const impersonate = async (userId) => {
     const r = await fetch(`/api/admin/users/${userId}/impersonate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     const d = await r.json()
     if (!r.ok) throw new Error(d.error)
-    setSessionKey(d.user.id); setUser(d.user); return d.user
+    setUser(d.user)
+    return d.user
   }
   const exitImpersonation = async () => {
     const r = await fetch('/api/auth/exit-impersonation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     const d = await r.json()
     if (!r.ok) throw new Error(d.error || 'Please sign in again')
-    setSessionKey(d.user.id); setUser(d.user)
+    setUser(d.user)
   }
   const logout = async () => {
-    const r = await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-    if (!r.ok) throw new Error('Sign-out failed. Please try again.')
-    setSessionKey(null); setUser(null)
+    await signOut()
+    setUser(null)
   }
-  return { user, sessionKey, loading, login, signup, logout, impersonate, exitImpersonation }
+  return { user, loading, isSignedIn: !!isSignedIn, logout, impersonate, exitImpersonation, refresh }
 }
 
 function api() {
@@ -729,203 +740,28 @@ function ContactPage({ cms }) {
 }
 
 // ============== LOGIN / SIGNUP ==============
-function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
-  const [mode, setMode] = useState(authAction?.type || 'login')
-  const [form, setForm] = useState({ identifier: '', password: '', confirmPassword: '', email: '', phone: '', firstName: '', lastName: '', companyName: '' })
-  const [loading, setLoading] = useState(false)
-  const [welcome, setWelcome] = useState(null) // { name, isNew }
-  const [actionMessage, setActionMessage] = useState('')
-  const [actionError, setActionError] = useState('')
-
+function LoginPage({ setRoute, auth }) {
+  const [mode, setMode] = useState('login')
+  // After Clerk signs the user in, send them to their workspace.
   useEffect(() => {
-    if (authAction) setMode(authAction.type)
-  }, [authAction])
-
-  async function confirmEmail() {
-    setLoading(true); setActionError(''); setActionMessage('')
-    try {
-      const r = await fetch('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token }) })
-      const d = await r.json()
-      if (!r.ok) { setActionError(d.error || 'Email verification failed'); return }
-      setActionMessage(d.message)
-    } catch (e) { setActionError(e.message) } finally { setLoading(false) }
-  }
-
-  async function resendVerification() {
-    const email = (form.email || form.identifier).trim()
-    if (!email || !email.includes('@')) { toast.error('Enter your email address'); return }
-    setLoading(true)
-    try {
-      const r = await fetch('/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
-      const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to resend verification'); return }
-      setMode('verification-sent'); setActionMessage(d.message)
-    } catch (e) { toast.error(e.message) } finally { setLoading(false) }
-  }
-
-  async function submit(e) {
-    e.preventDefault()
-    setLoading(true)
-    try {
-      if (mode === 'login') {
-        try {
-          const u = await auth.login(form.identifier, form.password)
-          setWelcome({ name: u.firstName || 'there', isNew: false, role: u.role })
-        } catch (error) {
-          if (error.code === 'EMAIL_NOT_VERIFIED') { setForm({ ...form, email: form.identifier.includes('@') ? form.identifier : '' }); setMode('unverified'); return }
-          toast.error(error.message)
-          return
-        }
-      } else if (mode === 'signup') {
-        if (!form.email || !form.phone) { toast.error('Email and phone are both required'); setLoading(false); return }
-        const d = await auth.signup(form)
-        setActionMessage(d.message); setMode('verification-sent')
-      } else if (mode === 'forgot') {
-        const r = await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: form.identifier }) })
-        const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to request password reset'); return }
-        setActionMessage(d.message); setMode('reset-sent')
-      } else if (mode === 'reset') {
-        if (form.password !== form.confirmPassword) { toast.error('Passwords do not match'); return }
-        const r = await fetch('/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token, password: form.password }) })
-        const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to reset password'); return }
-        await auth.logout(); toast.success(d.message); clearAuthAction?.(); setForm({ ...form, password: '', confirmPassword: '' }); setMode('login')
-      }
-    } catch (e) { toast.error(e.message) } finally { setLoading(false) }
-  }
-
-  function continueAfterWelcome() {
-    setRoute(isStaff(welcome) ? 'admin' : 'portal')
-  }
-
-  const titles = {
-    login: 'Sign in to your account', signup: 'Create your VEW account', forgot: 'Reset your password',
-    reset: 'Choose a new password', verify: 'Verify your email', unverified: 'Verify your email first',
-    'verification-sent': 'Check your email', 'reset-sent': 'Check your email',
-  }
-  const descriptions = {
-    login: 'Track your RFQs and production progress in real-time.', signup: 'Get instant quotes and live production tracking.',
-    forgot: 'Enter your email to receive reset instructions.', reset: 'Enter a secure new password for your account.',
-    verify: 'Confirm below to verify your email address.', unverified: 'We sent a verification link to your email address.',
-    'verification-sent': 'Open the verification link before signing in.', 'reset-sent': 'Open the password-reset link sent to your email.',
-  }
-
+    if (auth.user && !auth.loading) setRoute(isStaff(auth.user) ? 'admin' : 'portal')
+  }, [auth.user, auth.loading, setRoute])
   return (
     <div className="bg-white text-neutral-900 min-h-[calc(100vh-4rem)]">
-      <div className="container mx-auto px-4 py-14 md:py-20 flex justify-center">
-        <div className="w-full max-w-md">
-          <div className="flex items-center gap-2.5 mb-10">
-            <Cog className="h-9 w-9 text-neutral-900" />
-            <div className="font-display font-bold text-neutral-900 tracking-tight">Vijaya Engineering Works</div>
-          </div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">
-            {mode === 'signup' ? 'Create account' : mode === 'login' ? 'Welcome back' : 'Account access'}
-          </p>
-          <h1 className="font-display text-4xl font-bold tracking-tight text-neutral-900 mb-3">{titles[mode] || titles.login}</h1>
-          <p className="text-neutral-500 mb-8 leading-relaxed">{descriptions[mode] || descriptions.login}</p>
-
-          {['login','signup'].includes(mode) && <div className="mb-6">
-            <button type="button" onClick={() => { window.location.href = '/api/auth/google' }}
-              className="w-full h-12 rounded-full border border-neutral-300 bg-white hover:bg-neutral-50 flex items-center justify-center gap-3 font-medium text-neutral-900">
-              <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden>
-                <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45c-.28 1.48-1.12 2.73-2.4 3.58v2.97h3.88c2.27-2.09 3.57-5.17 3.57-8.74z" />
-                <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.88-2.97c-1.08.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.71-4.95H1.28v3.07C3.26 21.3 7.31 24 12 24z" />
-                <path fill="#FBBC05" d="M5.29 14.32c-.24-.72-.38-1.49-.38-2.32s.14-1.6.38-2.32V6.61H1.28C.46 8.24 0 10.06 0 12s.46 3.76 1.28 5.39l4.01-3.07z" />
-                <path fill="#EA4335" d="M12 4.73c1.76 0 3.34.61 4.58 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.28 6.61l4.01 3.07c.94-2.84 3.59-4.95 6.71-4.95z" />
-              </svg>
-              Continue with Google
-            </button>
-            <div className="flex items-center gap-4 my-6">
-              <div className="flex-1 border-t border-neutral-200" />
-              <span className="text-xs uppercase tracking-[0.18em] text-neutral-400">or with email</span>
-              <div className="flex-1 border-t border-neutral-200" />
-            </div>
-          </div>}
-
-          {['login','signup','forgot','reset'].includes(mode) && <form onSubmit={submit} className="space-y-4">
-            {mode === 'signup' && <>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-slate-900 font-medium">First Name *</Label><Input required className="mt-1.5 h-12 rounded-xl" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></div>
-                <div><Label className="text-slate-900 font-medium">Last Name *</Label><Input required className="mt-1.5 h-12 rounded-xl" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></div>
-              </div>
-              <div><Label className="text-slate-900 font-medium">Company Name</Label><Input className="mt-1.5 h-12 rounded-xl" value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} /></div>
-              <div><Label className="text-slate-900 font-medium">Email *</Label>
-                <div className="relative mt-1.5"><Mail className="h-4 w-4 text-slate-400 absolute left-3.5 top-4" />
-                  <Input required type="email" className="pl-10 h-12 rounded-xl" placeholder="you@company.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-                </div>
-              </div>
-              <div><Label className="text-slate-900 font-medium">Phone *</Label>
-                <div className="relative mt-1.5"><Phone className="h-4 w-4 text-slate-400 absolute left-3.5 top-4" />
-                  <Input required type="tel" className="pl-10 h-12 rounded-xl" placeholder="+91 98765 43210" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-                </div>
-                <div className="text-xs text-slate-500 mt-1.5">You&apos;ll be able to sign in with either email or phone.</div>
-              </div>
-            </>}
-            {(mode === 'login' || mode === 'forgot') && (
-              <div><Label className="text-slate-900 font-medium">{mode === 'forgot' ? 'Email address' : 'Email or Phone'}</Label>
-                <div className="relative mt-1.5"><User className="h-4 w-4 text-slate-400 absolute left-3.5 top-4" />
-                  <Input aria-label={mode === 'forgot' ? 'Email address' : 'Email or phone'} autoComplete="username" required type={mode === 'forgot' ? 'email' : 'text'} className="pl-10 h-12 rounded-xl" placeholder={mode === 'forgot' ? 'you@company.com' : 'Email address or phone number'} value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
-                </div>
-              </div>
-            )}
-            {(mode === 'login' || mode === 'signup' || mode === 'reset') && (
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-slate-900 font-medium">Password{mode === 'signup' && ' *'}</Label>
-                  {mode === 'login' && <button type="button" onClick={() => setMode('forgot')} className="text-xs text-neutral-900 font-semibold hover:underline">Forgot password?</button>}
-                </div>
-                <Input aria-label="Password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? undefined : 8} maxLength={128} type="password" className="mt-1.5 h-12 rounded-xl" placeholder={mode === 'signup' || mode === 'reset' ? 'At least 8 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-              </div>
-            )}
-            {mode === 'reset' && <div><Label className="text-slate-900 font-medium">Confirm new password</Label><Input aria-label="Confirm new password" autoComplete="new-password" required minLength={8} type="password" className="mt-1.5 h-12 rounded-xl" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} /></div>}
-            <div className="pt-2">
-              <Button disabled={loading} type="submit" className="w-full h-12 rounded-full bg-neutral-900 text-white hover:bg-neutral-700">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : mode === 'reset' ? 'Update Password' : 'Send Reset Instructions'}
-              </Button>
-            </div>
-          </form>}
-          {mode === 'verify' && <div className="text-center py-6 space-y-4">
-            {loading && <Loader2 className="h-8 w-8 animate-spin text-neutral-900 mx-auto" />}
-            {!loading && !actionMessage && !actionError && <Button onClick={confirmEmail} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700">Verify email address</Button>}
-            {actionMessage && <><CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto" /><p className="text-sm text-slate-700">{actionMessage}</p><Button onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700">Continue to sign in</Button></>}
-            {actionError && <><p className="text-sm text-red-600">{actionError}</p><Button variant="outline" onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full">Return to sign in</Button></>}
-          </div>}
-          {['verification-sent','reset-sent'].includes(mode) && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-neutral-100 text-neutral-900 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">{actionMessage}</p><Button variant="outline" onClick={() => setMode('login')} className="rounded-full">Back to sign in</Button></div>}
-          {mode === 'unverified' && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-neutral-100 text-neutral-900 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">Your account must be verified before you can sign in.</p><Input aria-label="Email to verify" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Your email address" className="h-12 rounded-xl" /><Button disabled={loading} onClick={resendVerification} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend verification email'}</Button></div>}
-
-          <div className="mt-8 pt-6 border-t border-neutral-200 text-center text-sm text-neutral-600 space-y-2.5">
-            {mode === 'login' && <div>New to VEW? <button onClick={() => setMode('signup')} className="text-neutral-900 font-semibold hover:underline">Create an account</button></div>}
-            {mode === 'login' && <div><button onClick={() => setMode('unverified')} className="text-neutral-500 hover:text-neutral-900 font-medium">Resend verification email</button></div>}
-            {['unverified','reset'].includes(mode) && <div><button onClick={() => { clearAuthAction?.(); setMode('login') }} className="text-neutral-900 font-semibold hover:underline">Back to sign in</button></div>}
-            {mode === 'signup' && <div>Already have an account? <button onClick={() => setMode('login')} className="text-neutral-900 font-semibold hover:underline">Sign in</button></div>}
-            {mode === 'forgot' && <div><button onClick={() => setMode('login')} className="text-neutral-900 font-semibold hover:underline">← Back to sign in</button></div>}
-          </div>
-          <div className="text-center text-xs text-neutral-400 mt-8">Protected by password hashing (scrypt). Your credentials are never stored in plain text.</div>
+      <div className="container mx-auto px-4 py-14 md:py-20 flex flex-col items-center">
+        <div className="flex items-center gap-2.5 mb-8">
+          <Cog className="h-9 w-9 text-neutral-900" />
+          <div className="font-display font-bold text-neutral-900 tracking-tight">Vijaya Engineering Works</div>
+        </div>
+        {mode === 'login'
+          ? <SignIn routing="hash" appearance={clerkAppearance} />
+          : <SignUp routing="hash" appearance={clerkAppearance} />}
+        <div className="mt-6 text-sm text-neutral-600">
+          {mode === 'login'
+            ? <>New to VEW? <button onClick={() => setMode('signup')} className="text-neutral-900 font-semibold hover:underline">Create an account</button></>
+            : <>Already have an account? <button onClick={() => setMode('login')} className="text-neutral-900 font-semibold hover:underline">Sign in</button></>}
         </div>
       </div>
-
-      {/* Welcome modal */}
-      <Dialog open={!!welcome} onOpenChange={o => !o && setWelcome(null)}>
-        <DialogContent className="max-w-sm text-center rounded-3xl">
-          <DialogHeader>
-            <div className="mx-auto mb-3">
-              <div className="inline-flex rounded-full p-4 text-white bg-neutral-900">
-                <CheckCircle2 className="h-12 w-12" />
-              </div>
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-2">Signed in</p>
-            <DialogTitle className="text-center font-display text-3xl tracking-tight">
-              {welcome?.isNew ? `Welcome, ${welcome?.name}!` : `Welcome back, ${welcome?.name}!`}
-            </DialogTitle>
-            <DialogDescription className="text-center pt-2">
-              {welcome?.isNew
-                ? "Your account is ready. Submit RFQs and track every stage of production live."
-                : isStaff(welcome) ? 'Signed in as administrator.' : "You're signed in. Continue to your portal to see all your RFQs and orders."}
-            </DialogDescription>
-          </DialogHeader>
-          <Button onClick={continueAfterWelcome} className="w-full rounded-full h-12 mt-2 bg-neutral-900 text-white hover:bg-neutral-700">
-            {isStaff(welcome) ? 'Go to Admin Dashboard' : 'Continue to My Portal'} <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -946,9 +782,7 @@ function UserManagement({ auth, onImpersonate }) {
   const [query, setQuery] = useState('')
   const userList = usePagedList(`/api/admin/users?q=${encodeURIComponent(query)}`, 'users', auth.user?.id)
   const users = userList.items, load = userList.refresh
-  const [resetTarget, setResetTarget] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
-  const [newPw, setNewPw] = useState('')
 
   async function toggle(u) {
     if (u.id === auth.user?.id) { toast.error("You can't disable your own account"); return }
@@ -956,12 +790,6 @@ function UserManagement({ auth, onImpersonate }) {
     const result = await api().patch(`/api/admin/users/${u.id}/toggle`, {}); if (result.error) return
     toast.success(u.isActive ? 'Account disabled' : 'Account re-enabled')
     load()
-  }
-  async function doReset() {
-    if (!newPw || newPw.length < 8) { toast.error('At least 8 characters'); return }
-    const r = await api().post(`/api/admin/users/${resetTarget.id}/reset-password`, { password: newPw })
-    if (r.success) { toast.success('Password reset'); setResetTarget(null); setNewPw('') }
-    else toast.error(r.error)
   }
   async function saveCustomer(e) {
     e.preventDefault()
@@ -991,9 +819,6 @@ function UserManagement({ auth, onImpersonate }) {
           {auth.user?.role === 'owner' && <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => impersonate(u)} title="Sign in as this customer">
             <ShieldCheck className="h-3 w-3 mr-1" />View as customer
           </Button>}
-          <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => setResetTarget(u)}>
-            <Pencil className="h-3 w-3 mr-1" />Reset
-          </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditTarget(u)}>Edit</Button>
           <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteUser(u)}>Delete</Button>
           <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
@@ -1088,20 +913,6 @@ function UserManagement({ auth, onImpersonate }) {
       </div>
       <ListPager list={userList} label="Users" />
       <Dialog open={!!editTarget} onOpenChange={o => !o && setEditTarget(null)}><DialogContent><DialogHeader><DialogTitle>Edit customer details</DialogTitle></DialogHeader>{editTarget && <form onSubmit={saveCustomer} className="space-y-3">{[['firstName','First name'],['lastName','Last name'],['companyName','Company'],['phone','Phone']].map(([key,label]) => <label key={key} className="block text-sm">{label}<Input value={editTarget[key] || ''} onChange={e => setEditTarget({ ...editTarget, [key]: e.target.value })} /></label>)}<p className="text-sm text-slate-500">Email and staff access cannot be changed here.</p><Button type="submit">Save customer</Button></form>}</DialogContent></Dialog>
-      <Dialog open={!!resetTarget} onOpenChange={o => !o && setResetTarget(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Reset password for {resetTarget?.firstName} {resetTarget?.lastName}</DialogTitle><DialogDescription>Set a temporary customer password and share it securely.</DialogDescription></DialogHeader>
-          <div className="space-y-3 py-3">
-            <div className="text-sm text-slate-600">Set a temporary password and share it securely with the customer.</div>
-            <Label>New Password</Label>
-            <Input type="password" placeholder="At least 8 characters" value={newPw} onChange={e => setNewPw(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setResetTarget(null); setNewPw('') }}>Cancel</Button>
-            <Button onClick={doReset} className="bg-slate-900 hover:bg-slate-800">Reset Password</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -1801,15 +1612,9 @@ function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search)
-    const verifyToken = params.get('verify')
-    const resetToken = params.get('reset')
     const inviteToken = params.get('invite')
-    const oauthError = params.get('oauth_error')
-    if (verifyToken || resetToken || inviteToken || oauthError) window.history.replaceState({}, '', window.location.pathname)
-    if (verifyToken) { setAuthAction({ type: 'verify', token: verifyToken }); setRoute('login') }
-    else if (resetToken) { setAuthAction({ type: 'reset', token: resetToken }); setRoute('login') }
-    else if (inviteToken) { setAuthAction({ type: 'invite', token: inviteToken }); setRoute('invite') }
-    else if (oauthError) { toast.error(oauthError); setRoute('login') }
+    if (inviteToken) window.history.replaceState({}, '', window.location.pathname)
+    if (inviteToken) { setAuthAction({ type: 'invite', token: inviteToken }); setRoute('invite') }
   }, [])
 
   const clearAuthAction = () => {
@@ -1866,7 +1671,7 @@ function App() {
   else if (route === 'about') content = <AboutPage cms={cms} />
   else if (route === 'contact') content = <ContactPage cms={cms} />
   else if (route === 'rfq') content = <RfqWizard setRoute={goRoute} auth={auth} />
-  else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} authAction={authAction} clearAuthAction={clearAuthAction} />
+  else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} />
   else if (route === 'portal') content = <CustomerPortal auth={auth} setRoute={goRoute} />
   else if (route === 'admin') content = <AdminDashboard auth={auth} cms={cms} reloadCms={loadCms} />
   else content = <HomePage setRoute={goRoute} cms={cms} />
