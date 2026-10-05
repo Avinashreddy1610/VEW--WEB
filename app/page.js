@@ -513,8 +513,8 @@ function Footer({ setRoute, cms }) {
         <div>
           <div className="text-neutral-900 font-semibold mb-3">Contact</div>
           <ul className="space-y-2 text-sm">
-            {cms?.phone && <li className="flex items-center gap-2"><Phone className="h-4 w-4 shrink-0" /><a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:text-neutral-900">{cms.phone}</a></li>}
-            {cms?.email && <li className="flex items-center gap-2"><Mail className="h-4 w-4 shrink-0" /><a href={`mailto:${cms.email}`} className="break-all hover:text-neutral-900">{cms.email}</a></li>}
+            {cms?.phone && <li className="flex items-start gap-2"><Phone className="h-4 w-4 mt-0.5 shrink-0" /><a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:text-neutral-900">{cms.phone}</a></li>}
+            {cms?.email && <li className="flex items-start gap-2"><Mail className="h-4 w-4 mt-0.5 shrink-0" /><a href={`mailto:${cms.email}`} className="break-all hover:text-neutral-900">{cms.email}</a></li>}
             {cms?.address && <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 shrink-0" />{cms.address}</li>}
             <li className="flex items-start gap-2"><Globe2 className="h-4 w-4 mt-0.5 shrink-0" /><a href={COMPANY_URL} className="break-all hover:text-neutral-900">vijayaengineeringworks.com</a></li>
           </ul>
@@ -1265,6 +1265,26 @@ function UserManagement({ auth, onImpersonate }) {
     } catch (e) { toast.error(e.message) }
   }
 
+  const userActions = (u, className) => (
+    <div className={className}>
+      {u.role === 'customer' && (
+        <>
+          {auth.user?.role === 'owner' && <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => impersonate(u)} title="Sign in as this customer">
+            <ShieldCheck className="h-3 w-3 mr-1" />View as customer
+          </Button>}
+          <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => setResetTarget(u)}>
+            <Pencil className="h-3 w-3 mr-1" />Reset
+          </Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditTarget(u)}>Edit</Button>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteCustomer(u)}>Delete</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
+            {u.isActive ? 'Disable' : 'Enable'}
+          </Button>
+        </>
+      )}
+    </div>
+  )
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -1276,8 +1296,8 @@ function UserManagement({ auth, onImpersonate }) {
           <Input className="pl-9" placeholder="Search by name, email, phone, company..." value={query} onChange={e => setQuery(e.target.value)} />
         </div>
       </div>
-      <Card><CardContent className="p-0 overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="hidden md:block"><Card><CardContent className="p-0 overflow-x-auto">
+        <table className="w-full text-sm min-w-[780px]">
           <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-4 py-3">User</th>
@@ -1309,30 +1329,36 @@ function UserManagement({ auth, onImpersonate }) {
                 </td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : 'Never'}</td>
                 <td className="px-4 py-3 text-right">
-                  <div className="inline-flex gap-1">
-                    {u.role === 'customer' && (
-                      <>
-                        {auth.user?.role === 'owner' && <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => impersonate(u)} title="Sign in as this customer">
-                          <ShieldCheck className="h-3 w-3 mr-1" />View as customer
-                        </Button>}
-                        <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => setResetTarget(u)}>
-                          <Pencil className="h-3 w-3 mr-1" />Reset
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditTarget(u)}>Edit</Button>
-                        <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteCustomer(u)}>Delete</Button>
-                        <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
-                          {u.isActive ? 'Disable' : 'Enable'}
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                  {userActions(u, "inline-flex gap-1")}
                 </td>
               </tr>
             ))}
             {!users.length && !userList.loading && !userList.error && <tr><td colSpan="7" className="p-10 text-center text-slate-500">No users found.</td></tr>}
           </tbody>
         </table>
-      </CardContent></Card>
+      </CardContent></Card></div>
+      <div className="md:hidden space-y-3">
+        {users.map(u => (
+          <Card key={u.id}><CardContent className="p-4 space-y-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-semibold text-slate-900">{u.firstName} {u.lastName}</div>
+                <div className="text-xs text-slate-500">{u.companyName || '—'}</div>
+              </div>
+              <Badge className={u.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}>{u.isActive ? 'Active' : 'Disabled'}</Badge>
+            </div>
+            <div className="text-sm text-slate-700 break-words">{u.email}</div>
+            <div className="text-xs text-slate-500">{u.phone || '—'}</div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+              <Badge className={isStaff(u) ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'}>{u.role}</Badge>
+              <span>{u.rfqCount} RFQs</span>
+              <span>Last login: {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : 'Never'}</span>
+            </div>
+            {userActions(u, "flex flex-wrap gap-2 pt-1")}
+          </CardContent></Card>
+        ))}
+        {!users.length && !userList.loading && !userList.error && <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-500 text-sm">No users found.</div>}
+      </div>
       <ListPager list={userList} label="Users" />
       <Dialog open={!!editTarget} onOpenChange={o => !o && setEditTarget(null)}><DialogContent><DialogHeader><DialogTitle>Edit customer details</DialogTitle></DialogHeader>{editTarget && <form onSubmit={saveCustomer} className="space-y-3">{[['firstName','First name'],['lastName','Last name'],['companyName','Company'],['phone','Phone']].map(([key,label]) => <label key={key} className="block text-sm">{label}<Input value={editTarget[key] || ''} onChange={e => setEditTarget({ ...editTarget, [key]: e.target.value })} /></label>)}<p className="text-sm text-slate-500">Email and staff access cannot be changed here.</p><Button type="submit">Save customer</Button></form>}</DialogContent></Dialog>
       <Dialog open={!!resetTarget} onOpenChange={o => !o && setResetTarget(null)}>

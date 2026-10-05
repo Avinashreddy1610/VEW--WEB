@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* Contain wide tables/trackers locally without clipping the whole page. */
-html { overflow-wrap: anywhere; position: relative; }
+html { overflow-wrap: break-word; position: relative; }
 body { min-width: 0; position: relative; }
 main, section, .grid > *, .flex > * { min-width: 0; }
 img, video { max-width: 100%; }
