@@ -59,19 +59,20 @@ export function Cursor() {
     const el = ref.current
     if (!el || kineticState.reduced || kineticState.touch) return
     let x = -100, y = -100, tx = -100, ty = -100, s = 1, ts = 1, raf = 0
+    const loop = () => {
+      raf = 0
+      x += (tx - x) * 0.32; y += (ty - y) * 0.32; s += (ts - s) * 0.22
+      el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%) scale(${s.toFixed(3)})`
+      if (Math.abs(tx - x) > 0.05 || Math.abs(ty - y) > 0.05 || Math.abs(ts - s) > 0.002) raf = requestAnimationFrame(loop)
+    }
     const onMove = e => {
       tx = e.clientX; ty = e.clientY
       const hot = e.target && e.target.closest ? e.target.closest('a,button,[data-magnetic],.k-ch') : null
       ts = hot ? 2.4 : 1
       el.classList.toggle('k-cursor-hot', !!hot)
+      if (!raf) raf = requestAnimationFrame(loop)
     }
     window.addEventListener('mousemove', onMove, { passive: true })
-    const loop = () => {
-      raf = requestAnimationFrame(loop)
-      x += (tx - x) * 0.32; y += (ty - y) * 0.32; s += (ts - s) * 0.22
-      el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0) translate(-50%,-50%) scale(${s.toFixed(3)})`
-    }
-    raf = requestAnimationFrame(loop)
     return () => { cancelAnimationFrame(raf); window.removeEventListener('mousemove', onMove) }
   }, [])
   if (kineticState.reduced || kineticState.touch) return null
@@ -242,12 +243,15 @@ export function WebGLStage() {
       my = -(((e.clientY - r.top) / Math.max(1, r.height)) * 2 - 1)
     }
     window.addEventListener('mousemove', onMove, { passive: true })
-    const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting }, { threshold: 0 })
+    const kick = () => { if (!raf && !document.hidden && visible) raf = requestAnimationFrame(loop) }
+    const io = new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) kick() }, { threshold: 0 })
     io.observe(mount)
+    const onVis = () => { if (visible) kick() }
+    document.addEventListener('visibilitychange', onVis)
     const t0 = performance.now()
     const loop = () => {
+      if (!visible || document.hidden) { raf = 0; return }
       raf = requestAnimationFrame(loop)
-      if (!visible || document.hidden) return
       const t = (performance.now() - t0) / 1000
       const sp = Math.hypot(mx - pmx, my - pmy); pmx = mx; pmy = my
       push = Math.min(push + Math.min(sp * 2.4, 1.2), 2.2) * 0.94
@@ -276,6 +280,7 @@ export function WebGLStage() {
     return () => {
       cancelAnimationFrame(raf); ro.disconnect(); io.disconnect()
       window.removeEventListener('mousemove', onMove)
+      document.removeEventListener('visibilitychange', onVis)
       try {
         const ext = gl.getExtension('WEBGL_lose_context')
         if (ext) ext.loseContext()
@@ -441,13 +446,13 @@ export function BootPreloader({ onDone }) {
       if (doneRef.current) return
       doneRef.current = true
       setN(100)
-      endT = setTimeout(onDone, 200)
+      endT = setTimeout(onDone, 100)
     }
     const tick = t => {
-      const p = Math.min(1, (t - t0) / 2100)
+      const p = Math.min(1, (t - t0) / 550)
       setN(Math.round((1 - Math.pow(1 - p, 3)) * 100))
       if (p < 1) raf = requestAnimationFrame(tick)
-      else endT = setTimeout(finish, 380)
+      else endT = setTimeout(finish, 140)
     }
     raf = requestAnimationFrame(tick)
     return () => { cancelAnimationFrame(raf); clearTimeout(endT) }
@@ -459,7 +464,7 @@ export function BootPreloader({ onDone }) {
   }
   const shown = BOOT_LINES.slice(0, 1 + Math.floor(n / 30)).join('\n')
   return (
-    <motion.div exit={{ y: '-100%' }} transition={{ duration: 0.85, ease: [0.76, 0, 0.24, 1] }}
+    <motion.div exit={{ y: '-100%' }} transition={{ duration: 0.55, ease: [0.76, 0, 0.24, 1] }}
       onClick={skip} className="fixed inset-0 z-[200] bg-[#020406] cursor-pointer select-none" role="status" aria-label="Loading">
       <div className="k-frame" aria-hidden="true"><i className="k-fT" /><i className="k-fB" /><i className="k-fL" /><i className="k-fR" /></div>
       <div className="absolute top-9 left-9 md:top-11 md:left-11 font-tech text-[10px] uppercase tracking-[0.42em] text-[#22d3ee]">VEW.SYS // initializing</div>
