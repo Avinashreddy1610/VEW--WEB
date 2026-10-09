@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { ManagerManagement, CompanyManagement } from '@/components/management-panels'
 import { CompanyOrders, CompanyInvitation } from '@/components/company-orders'
 import { createPortal } from 'react-dom'
+import ChatWidget from '@/components/chat-widget'
 import Image from 'next/image'
 const isStaff = user => ['owner', 'manager'].includes(user?.role)
 
@@ -793,7 +794,7 @@ function PrivacyPage({ cms }) {
         <p>We use your data to respond to enquiries, prepare quotations, manage your account and orders, and keep the website secure. We do not sell your personal data and we do not use it for advertising.</p>
       </LegalSection>
       <LegalSection title="Who we share it with">
-        <p>We share data only with the service providers needed to run this website — principally Clerk for authentication — and only as required by law. Drawings and specifications you upload are used solely to quote and manufacture your order.</p>
+        <p>We share data only with the service providers needed to run this website — Clerk for authentication, and Anthropic for the on-site AI assistant (your chat messages are processed by Anthropic to generate replies) — and only as required by law. We do not sell your personal data. Drawings and specifications you upload are used solely to quote and manufacture your order.</p>
       </LegalSection>
       <LegalSection title="How long we keep it">
         <p>We keep enquiry and quote records for as long as needed for the business relationship, and account data until you ask us to delete it.</p>
@@ -1827,6 +1828,7 @@ function App() {
       {cmsError && <div role="alert" className="mx-auto max-w-xl px-4 py-4 text-sm text-red-700">Some business details could not be loaded. <button className="underline" onClick={loadCms}>Try again</button></div>}
       <Footer setRoute={goRoute} cms={cms} />
       <CookieBanner setRoute={goRoute} />
+      {isPublicRoute && <ChatWidget />}
       <Dialog open={signoutOpen} onOpenChange={setSignoutOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
