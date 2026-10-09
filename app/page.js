@@ -283,7 +283,7 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
 function Footer({ setRoute, cms }) {
   return (
     <footer className="bg-neutral-100 text-neutral-600 border-t border-neutral-200">
-      <div className="container mx-auto px-4 py-14 grid md:grid-cols-4 gap-8">
+      <div className="container mx-auto px-4 py-14 grid md:grid-cols-5 gap-8">
         <div>
           <div className="flex items-center gap-2 mb-3"><Cog className="h-6 w-6 text-neutral-900" /><div className="text-neutral-900 font-bold">{cms?.companyName || 'Vijaya Engineering Works'}</div></div>
           <p className="text-sm">Custom precision gear manufacturing from your drawings and specifications.</p>
@@ -299,6 +299,13 @@ function Footer({ setRoute, cms }) {
             <li><button onClick={() => setRoute('capabilities')} className="hover:text-neutral-900">Capabilities</button></li>
             <li><button onClick={() => setRoute('gallery')} className="hover:text-neutral-900">Gallery</button></li>
             <li><button onClick={() => setRoute('contact')} className="hover:text-neutral-900">Contact</button></li>
+          </ul>
+        </div>
+        <div>
+          <div className="text-neutral-900 font-semibold mb-3">Legal</div>
+          <ul className="space-y-2 text-sm">
+            <li><button onClick={() => setRoute('privacy')} className="hover:text-neutral-900">Privacy Policy</button></li>
+            <li><button onClick={() => setRoute('terms')} className="hover:text-neutral-900">Terms & Conditions</button></li>
           </ul>
         </div>
         <div>
@@ -692,7 +699,7 @@ function AboutPage({ cms }) {
   )
 }
 
-function ContactPage({ cms }) {
+function ContactPage({ cms, setRoute }) {
   const [contact, setContact] = useState({ name: '', email: '', message: '' })
   const contactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cms?.email || '') ? cms.email : null
   function composeContact(e) {
@@ -730,11 +737,139 @@ function ContactPage({ cms }) {
             <label className="block text-sm">Email<Input required type="email" placeholder="you@example.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} className="mt-1.5" /></label>
             <label className="block text-sm">Message<Textarea required placeholder="How can we help?" rows={4} value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} className="mt-1.5" /></label>
             <Button disabled={!contactEmail} className="w-full rounded-full bg-neutral-900 text-white hover:bg-neutral-700 h-12">Compose email</Button>
-            <p className="text-xs text-neutral-500">Opens your email app so you can review and send your message.</p>
+            <p className="text-xs text-neutral-500">Opens your email app so you can review and send your message. By sending a message, you agree to our <button type="button" onClick={() => setRoute('privacy')} className="underline underline-offset-2 hover:text-neutral-900">Privacy Policy</button> and <button type="button" onClick={() => setRoute('terms')} className="underline underline-offset-2 hover:text-neutral-900">Terms & Conditions</button>.</p>
           </form>
         </div>
       </div>
     </div>
+    </div>
+  )
+}
+
+// ============== LEGAL (Privacy Policy + Terms & Conditions) ==============
+const LEGAL_UPDATED = '8 October 2026'
+
+function LegalShell({ eyebrow, title, cms, children }) {
+  return (
+    <div className="bg-white text-neutral-900 min-h-screen">
+      <div className="container mx-auto px-4 py-14 md:py-20 max-w-3xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">{eyebrow}</p>
+        <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">{title}</h1>
+        <p className="text-neutral-500 mb-10 text-sm">Last updated: {LEGAL_UPDATED}</p>
+        <div className="space-y-8 text-neutral-700 leading-relaxed">
+          {children}
+          <section>
+            <h2 className="text-neutral-900 font-semibold text-lg mb-2">Questions</h2>
+            <p className="text-sm">For questions about these policies, contact us at {cms?.email ? <a href={`mailto:${cms.email}`} className="underline underline-offset-4 hover:text-neutral-900">{cms.email}</a> : 'the email address on our Contact page'}.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LegalSection({ title, children }) {
+  return (
+    <section>
+      <h2 className="text-neutral-900 font-semibold text-lg mb-2">{title}</h2>
+      <div className="text-sm space-y-2">{children}</div>
+    </section>
+  )
+}
+
+function PrivacyPage({ cms }) {
+  const company = cms?.companyName || 'Vijaya Engineering Works'
+  return (
+    <LegalShell eyebrow="Legal" title="Privacy Policy" cms={cms}>
+      <LegalSection title="Who we are">
+        <p>{company} ("we", "us") is a precision gear manufacturer based in Hyderabad, Telangana, India. This policy explains what personal data we collect through this website and how we use it.</p>
+      </LegalSection>
+      <LegalSection title="What we collect">
+        <p><span className="font-semibold text-neutral-900">Contact enquiries.</span> If you use the contact form, your name, email address, and message are composed into an email that you send from your own email app — we receive it as an email enquiry.</p>
+        <p><span className="font-semibold text-neutral-900">Accounts and quote requests.</span> When you create an account or request a quote, we collect your name, email address, company name, phone number, and any drawings, specifications, or other details you upload so we can prepare and manage your quote.</p>
+        <p><span className="font-semibold text-neutral-900">Sign-in data.</span> Authentication is handled by our identity provider, Clerk, which processes your email address and sign-in activity on our behalf.</p>
+      </LegalSection>
+      <LegalSection title="How we use it">
+        <p>We use your data to respond to enquiries, prepare quotations, manage your account and orders, and keep the website secure. We do not sell your personal data and we do not use it for advertising.</p>
+      </LegalSection>
+      <LegalSection title="Who we share it with">
+        <p>We share data only with the service providers needed to run this website — principally Clerk for authentication — and only as required by law. Drawings and specifications you upload are used solely to quote and manufacture your order.</p>
+      </LegalSection>
+      <LegalSection title="How long we keep it">
+        <p>We keep enquiry and quote records for as long as needed for the business relationship, and account data until you ask us to delete it.</p>
+      </LegalSection>
+      <LegalSection title="Your rights">
+        <p>Under India's Digital Personal Data Protection Act, 2023, you may request access to, correction of, or deletion of your personal data. Write to us using the contact details above and we will respond within a reasonable time.</p>
+      </LegalSection>
+      <LegalSection title="Cookies">
+        <p>This website uses a small number of cookies and similar storage, and nothing else:</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li><span className="font-semibold text-neutral-900">Authentication cookies</span> (set by Clerk) — keep you signed in. Required for accounts and quote requests.</li>
+          <li><span className="font-semibold text-neutral-900">Admin session cookie</span> — used only for staff administration.</li>
+          <li><span className="font-semibold text-neutral-900">Your cookie choice</span> — stored in your own browser so we don't ask again.</li>
+        </ul>
+        <p>We do not run analytics, advertising, or cross-site tracking cookies.</p>
+      </LegalSection>
+      <LegalSection title="Security">
+        <p>We apply reasonable technical and organisational safeguards to protect your data, but no internet transmission or storage system is completely secure.</p>
+      </LegalSection>
+    </LegalShell>
+  )
+}
+
+function TermsPage({ cms }) {
+  const company = cms?.companyName || 'Vijaya Engineering Works'
+  return (
+    <LegalShell eyebrow="Legal" title="Terms & Conditions" cms={cms}>
+      <LegalSection title="Our services">
+        <p>{company} manufactures custom precision gears and related components to order, based on drawings and specifications supplied by the customer.</p>
+      </LegalSection>
+      <LegalSection title="Quotations">
+        <p>All quotations are estimates based on the drawings and information you provide. Prices are valid for 30 days from the date of the quotation unless stated otherwise, and are confirmed before production begins. Any change to drawings or quantities may change the price and lead time.</p>
+      </LegalSection>
+      <LegalSection title="Drawings and intellectual property">
+        <p>By uploading drawings or specifications you confirm you own them or are authorised to share them. We use your drawings only to prepare your quotation and manufacture your order, and we do not disclose them to third parties except as needed to fulfil your order.</p>
+      </LegalSection>
+      <LegalSection title="Orders and payment">
+        <p>An order is confirmed when we accept it in writing. Payment terms are stated on the quotation or invoice. Production begins once any required advance payment is received.</p>
+      </LegalSection>
+      <LegalSection title="Lead times">
+        <p>Delivery dates we give are good-faith estimates based on our current schedule. We will inform you of any expected delay, but dates are not guaranteed unless expressly agreed in writing.</p>
+      </LegalSection>
+      <LegalSection title="Liability">
+        <p>To the maximum extent permitted by law, our liability for any order is limited to the value of that order. We are not liable for indirect, incidental, or consequential losses.</p>
+      </LegalSection>
+      <LegalSection title="Governing law">
+        <p>These terms are governed by the laws of India, and disputes are subject to the courts at Hyderabad, Telangana.</p>
+      </LegalSection>
+    </LegalShell>
+  )
+}
+
+// ============== COOKIE CONSENT ==============
+function CookieBanner({ setRoute }) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    try { if (!window.localStorage.getItem('vew-consent')) setShow(true) }
+    catch (e) { setShow(false) }
+  }, [])
+  if (!show) return null
+  function choose(v) {
+    try { window.localStorage.setItem('vew-consent', v) } catch (e) {}
+    setShow(false)
+  }
+  return (
+    <div className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-neutral-200" role="region" aria-label="Cookie notice">
+      <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+        <p className="text-sm text-neutral-600 max-w-2xl">
+          We use cookies to keep you signed in and remember your choices — no advertising trackers. Read our{' '}
+          <button onClick={() => setRoute('privacy')} className="underline underline-offset-4 hover:text-neutral-900">Privacy Policy</button>.
+        </p>
+        <div className="flex gap-2 shrink-0">
+          <button onClick={() => choose('declined')} className="rounded-full border border-neutral-300 px-5 h-10 text-sm hover:border-neutral-900">Decline</button>
+          <button onClick={() => choose('accepted')} className="rounded-full bg-neutral-900 text-white px-5 h-10 text-sm hover:bg-neutral-700">Accept</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -761,6 +896,11 @@ function LoginPage({ setRoute, auth }) {
             ? <>New to VEW? <button onClick={() => setMode('signup')} className="text-neutral-900 font-semibold hover:underline">Create an account</button></>
             : <>Already have an account? <button onClick={() => setMode('login')} className="text-neutral-900 font-semibold hover:underline">Sign in</button></>}
         </div>
+        <p className="mt-4 text-xs text-neutral-500 text-center max-w-xs">
+          By signing in or creating an account, you agree to our{' '}
+          <button onClick={() => setRoute('privacy')} className="underline underline-offset-2 hover:text-neutral-900">Privacy Policy</button>{' '}
+          and <button onClick={() => setRoute('terms')} className="underline underline-offset-2 hover:text-neutral-900">Terms & Conditions</button>.
+        </p>
       </div>
     </div>
   )
@@ -1657,7 +1797,7 @@ function App() {
 
   // Public pages render immediately — never block them on the session check.
   // Only account routes (login, portal, admin, rfq, invite) wait for auth.
-  const isPublicRoute = route === 'home' || route === 'products' || route.startsWith('product:') || route === 'capabilities' || route === 'gallery' || route === 'about' || route === 'contact'
+  const isPublicRoute = route === 'home' || route === 'products' || route.startsWith('product:') || route === 'capabilities' || route === 'gallery' || route === 'about' || route === 'contact' || route === 'privacy' || route === 'terms'
   if (auth.loading && !isPublicRoute) return <div role="status" className="min-h-screen flex items-center justify-center gap-3"><Loader2 className="h-8 w-8 animate-spin text-cyan-500" />Loading your account…</div>
 
   let content
@@ -1669,7 +1809,9 @@ function App() {
   else if (route === 'capabilities') content = <CapabilitiesPage />
   else if (route === 'gallery') content = <GalleryPage />
   else if (route === 'about') content = <AboutPage cms={cms} />
-  else if (route === 'contact') content = <ContactPage cms={cms} />
+  else if (route === 'contact') content = <ContactPage cms={cms} setRoute={goRoute} />
+  else if (route === 'privacy') content = <PrivacyPage cms={cms} />
+  else if (route === 'terms') content = <TermsPage cms={cms} />
   else if (route === 'rfq') content = <RfqWizard setRoute={goRoute} auth={auth} />
   else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} />
   else if (route === 'portal') content = <CustomerPortal auth={auth} setRoute={goRoute} />
@@ -1684,6 +1826,7 @@ function App() {
       <main id="main-content" className="flex-1 min-w-0" tabIndex={-1}>{content}</main>
       {cmsError && <div role="alert" className="mx-auto max-w-xl px-4 py-4 text-sm text-red-700">Some business details could not be loaded. <button className="underline" onClick={loadCms}>Try again</button></div>}
       <Footer setRoute={goRoute} cms={cms} />
+      <CookieBanner setRoute={goRoute} />
       <Dialog open={signoutOpen} onOpenChange={setSignoutOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
