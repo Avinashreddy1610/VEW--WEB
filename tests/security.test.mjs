@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url)
 const root = new URL('../', import.meta.url)
 let server, client, db, route
 process.env.AUTH_SECRET = 'test-secret-that-is-long-enough-for-hmac'
-process.env.OWNER_EMAIL = 'avinashreddk@gmail.com'
+process.env.OWNER_EMAIL = 'owner@example.com'
 process.env.DB_NAME = 'vew_isolated_tests'
 delete process.env.MONGO_URL
 delete process.env.MONGODB_URI

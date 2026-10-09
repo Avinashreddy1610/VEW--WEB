@@ -8,7 +8,7 @@ Copy `.env.example` to `.env.local` for local development. Configure the same va
 - `AUTH_SECRET`: long random value used to sign login sessions.
 - `APP_URL`: public production URL used in verification and password-reset links.
 - `RESEND_API_KEY` and `EMAIL_FROM`: transactional email delivery through Resend. The sending domain must be verified in Resend.
-- `OWNER_EMAIL`: `avinashreddk@gmail.com`. Only this verified email receives owner access. No default administrator is created. Register with that email and verify it; if it already exists, use password reset. Previously issued sessions and legacy demo administrators are rejected by the new authentication checks.
+- `OWNER_EMAIL`: the owner's login email address. Only this verified email receives owner access. No default administrator is created. Register with that email and verify it; if it already exists, use password reset. Previously issued sessions and legacy demo administrators are rejected by the new authentication checks. If this variable is unset, authenticated routes fail loudly instead of silently running without an owner.
 
 Customer accounts must verify their email before signing in. Verification links expire after 24 hours and password-reset links expire after one hour.
 
@@ -22,7 +22,7 @@ Production verification must include homepage, `/api/health`, owner email verifi
 
 ## Send a Resend test email
 
-Set `RESEND_API_KEY` in your private `.env.local` file, replacing `re_xxxxxxxxx` with your real Resend API key. Never put the key in source code, chat, or a `NEXT_PUBLIC_` variable. Then run `npm run email:test` manually to send the Hello World example to `avinashreddk@gmail.com`.
+Set `RESEND_API_KEY` in your private `.env.local` file, replacing `re_xxxxxxxxx` with your real Resend API key. Never put the key in source code, chat, or a `NEXT_PUBLIC_` variable. Then run `npm run email:test` manually to send the Hello World example to the address in `OWNER_EMAIL`.
 
 This script uses `onboarding@resend.dev`, Resend's testing sender, which can only send to the email associated with your Resend account. A sending-only key scoped to your own domain may not allow this test sender. Production signup/reset emails still use `EMAIL_FROM` with your verified domain; this test does not change that setting. Provider acceptance does not guarantee inbox delivery. Automated tests use a mock client and send no emails.
 

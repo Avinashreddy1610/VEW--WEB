@@ -7,6 +7,8 @@ import {newToken,tokenHash,verifyPassword} from '../lib/server/security.mjs'
 import {productProgress} from '../lib/order-model.mjs'
 import {receiptContent,sendBusinessEmail} from '../lib/server/business-email.mjs'
 
+process.env.OWNER_EMAIL = 'owner@example.com'
+
 let server,client,db
 const outbox=[]
 const staff={id:'staff-business',role:'manager',email:'manager@example.test'}
