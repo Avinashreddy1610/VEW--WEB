@@ -14,7 +14,7 @@ export const metadata = {
   metadataBase: new URL('https://www.vijayaengineeringworks.com'),
   alternates: { canonical: '/' },
   openGraph: { title: 'Vijaya Engineering Works — Custom Gear Manufacturing', description: siteDescription, url: '/', siteName: 'Vijaya Engineering Works', type: 'website' },
-  twitter: { card: 'summary', title: 'Vijaya Engineering Works', description: siteDescription },
+  twitter: { card: 'summary_large_image', title: 'Vijaya Engineering Works', description: siteDescription },
 }
 
 export default function RootLayout({ children }) {
