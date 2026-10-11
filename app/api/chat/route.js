@@ -81,6 +81,7 @@ export async function POST(req) {
 
   let upstream = null
   let lastStatus = 0
+  let lastDetail = ''
   for (const model of modelsToTry) {
     let res
     try {
@@ -94,13 +95,13 @@ export async function POST(req) {
     }
     if (res.ok && res.body) { upstream = res; break }
     lastStatus = res.status
+    try { lastDetail = (await res.text()).slice(0, 300) } catch { lastDetail = '' }
     if (res.status !== 429) break // only the rate-limited case is worth retrying
   }
   if (!upstream) {
-    // Surface OpenRouter's status code (never the key) so a bad key (401),
-    // unknown model (404), or rate limiting (429) is actually diagnosable.
+    // Surface OpenRouter's status and reason (never the key) so failures are diagnosable.
     return Response.json(
-      { error: 'upstream', upstream_status: lastStatus, message: 'The assistant is temporarily unavailable.' },
+      { error: 'upstream', upstream_status: lastStatus, upstream_detail: lastDetail, message: 'The assistant is temporarily unavailable.' },
       { status: 502 }
     )
   }
