@@ -84,7 +84,12 @@ export async function POST(req) {
     return Response.json({ error: 'upstream', message: 'The assistant is temporarily unavailable.' }, { status: 502 })
   }
   if (!upstream.ok || !upstream.body) {
-    return Response.json({ error: 'upstream', message: 'The assistant is temporarily unavailable.' }, { status: 502 })
+    // Surface OpenRouter's status code (never the key) so a bad key (401),
+    // unknown model (404), or other upstream failure is actually diagnosable.
+    return Response.json(
+      { error: 'upstream', upstream_status: upstream.status, message: 'The assistant is temporarily unavailable.' },
+      { status: 502 }
+    )
   }
 
   const encoder = new TextEncoder()
