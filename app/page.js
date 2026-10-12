@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { motion, MotionConfig, AnimatePresence, useScroll, useTransform } from 'framer-motion'
-import ResponsiveImage from '@/components/responsive-image'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth as useClerkAuth, useClerk, SignIn, SignUp } from '@clerk/nextjs'
 import { apiFetch as fetch } from '@/lib/client-http.mjs'
 import { cleanContact, pageTitles } from '@/lib/site-content.mjs'
 import { ListPager, usePagedList } from '@/components/paged-list'
@@ -19,8 +19,22 @@ import { toast } from 'sonner'
 import { ManagerManagement, CompanyManagement } from '@/components/management-panels'
 import { CompanyOrders, CompanyInvitation } from '@/components/company-orders'
 import { createPortal } from 'react-dom'
+import ChatWidget from '@/components/chat-widget'
 import Image from 'next/image'
 const isStaff = user => ['owner', 'manager'].includes(user?.role)
+
+// Light, minimal Clerk appearance matching the site theme.
+const clerkAppearance = {
+  variables: { colorPrimary: '#171717', colorText: '#171717', colorTextSecondary: '#525252', borderRadius: '12px' },
+  elements: {
+    card: 'shadow-none border border-neutral-200 rounded-3xl',
+    headerTitle: 'font-display',
+    formButtonPrimary: 'bg-neutral-900 hover:bg-neutral-700 rounded-full h-12 text-sm normal-case tracking-normal',
+    socialButtonsBlockButton: 'rounded-full h-12 border-neutral-300',
+    formFieldInput: 'rounded-xl h-12',
+    footerActionLink: 'text-neutral-900 font-semibold',
+  },
+}
 import {
   Cog, Wrench, Factory, Ruler, ShieldCheck, Upload, FileText, Trash2, ArrowRight, ArrowLeft,
   CheckCircle2, Menu, X, Mail, Phone, MapPin, Globe2, ClipboardList, Search,
@@ -139,48 +153,48 @@ const SPEC_FIELDS = {
 function specGroup(t) { if (!t) return 'custom'; if (t.includes('Bevel')) return 'bevel'; if (t.includes('Helical')) return 'helical'; if (t === 'Spur Gear') return 'spur'; return 'custom' }
 
 // ============== AUTH HOOK ==============
+// Auth state is owned by Clerk; the local user record (roles, business data)
+// is fetched from /api/auth/me once Clerk reports a signed-in session.
 function useAuth() {
+  const { isLoaded: clerkLoaded, isSignedIn } = useClerkAuth()
+  const { signOut } = useClerk()
   const [user, setUser] = useState(null)
-  const [sessionKey, setSessionKey] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  const refresh = useCallback(async () => {
+    if (!isSignedIn) { setUser(null); return null }
+    try {
+      const r = await fetch('/api/auth/me')
+      const d = await r.json()
+      setUser(d.user || null)
+      return d.user || null
+    } catch { setUser(null); return null }
+  }, [isSignedIn])
+
   useEffect(() => {
-    // Retire legacy browser-readable credentials. The server owns the session cookie.
-    try { localStorage.removeItem('vew_token'); localStorage.removeItem('vew_admin_token') } catch { /* Storage may be disabled; cookie sign-in still works. */ }
-    fetch('/api/auth/me')
-      .then(r => r.json()).then(d => { if (d.user) { setUser(d.user); setSessionKey(d.user.id) } else setSessionKey(null) })
-      .catch(() => { setSessionKey(null); setUser(null) })
-      .finally(() => setLoading(false))
-  }, [])
-  const login = async (identifier, password) => {
-    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, password }) })
-    const d = await r.json()
-    if (!r.ok) { const error = new Error(d.error); error.code = d.code; throw error }
-    setSessionKey(d.user.id); setUser(d.user); return d.user
-  }
-  const signup = async (data) => {
-    const r = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-    const d = await r.json()
-    if (!r.ok) throw new Error(d.error)
-    return d
-  }
+    if (!clerkLoaded) return
+    setLoading(true)
+    refresh().finally(() => setLoading(false))
+  }, [clerkLoaded, isSignedIn, refresh])
+
   const impersonate = async (userId) => {
     const r = await fetch(`/api/admin/users/${userId}/impersonate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     const d = await r.json()
     if (!r.ok) throw new Error(d.error)
-    setSessionKey(d.user.id); setUser(d.user); return d.user
+    setUser(d.user)
+    return d.user
   }
   const exitImpersonation = async () => {
     const r = await fetch('/api/auth/exit-impersonation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
     const d = await r.json()
     if (!r.ok) throw new Error(d.error || 'Please sign in again')
-    setSessionKey(d.user.id); setUser(d.user)
+    setUser(d.user)
   }
   const logout = async () => {
-    const r = await fetch('/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-    if (!r.ok) throw new Error('Sign-out failed. Please try again.')
-    setSessionKey(null); setUser(null)
+    await signOut()
+    setUser(null)
   }
-  return { user, sessionKey, loading, login, signup, logout, impersonate, exitImpersonation }
+  return { user, loading, isSignedIn: !!isSignedIn, logout, impersonate, exitImpersonation, refresh }
 }
 
 function api() {
@@ -209,228 +223,9 @@ function FadeIn({ children, className = '', delay = 0 }) {
     variants={{ hidden: { opacity: 0, y: 40 }, visible: { opacity: 1, y: 0, transition: { duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] } } }}>{children}</motion.div>
 }
 
-// ============== GEAR LOGO ==============
-function GearLogo({ className = 'h-8 w-8', spin = false }) {
-  return <motion.div animate={spin ? { rotate: 360 } : {}} transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}>
-    <Cog className={className + ' text-cyan-500'} strokeWidth={2.2} />
-  </motion.div>
-}
-
-// ============== FUTURISTIC UI PRIMITIVES ==============
-function Eyebrow({ children, className = '' }) {
-  return (
-    <div className={`flex items-center gap-3 mb-6 ${className}`}>
-      <span className="font-tech text-[#22d3ee] text-sm select-none">//</span>
-      <span className="font-tech text-[#67e8f9] font-medium text-xs uppercase tracking-[0.32em]">{children}</span>
-      <span className="h-px w-20 bg-gradient-to-r from-[#22d3ee]/70 to-transparent" />
-    </div>
-  )
-}
-
-function SectionHead({ eyebrow, title, sub, center = false, no }) {
-  return (
-    <FadeIn>
-      <div className={`relative max-w-4xl mb-16 ${center ? 'mx-auto text-center' : ''}`}>
-        {no && (
-          <div aria-hidden className={`font-display font-bold text-stroke-faint leading-none text-[6.5rem] md:text-[8.5rem] absolute -top-14 md:-top-20 select-none pointer-events-none ${center ? 'left-1/2 -translate-x-1/2' : '-left-3'}`}>
-            {no}
-          </div>
-        )}
-        <div className="relative">
-          <Eyebrow className={center ? 'justify-center' : ''}>{eyebrow}</Eyebrow>
-          <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tight text-[#eef3f6] leading-[1.02]">{title}</h2>
-          {sub && <p className={`text-[#8b98a5] mt-5 text-lg font-light leading-relaxed max-w-2xl ${center ? 'mx-auto' : ''}`}>{sub}</p>}
-        </div>
-      </div>
-    </FadeIn>
-  )
-}
-
-function Orbs() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <motion.div animate={{ x: [0, 50, 0], y: [0, -30, 0] }} transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -top-40 -left-32 h-[520px] w-[520px] rounded-full bg-[#22d3ee]/[0.13] blur-[140px]" />
-      <motion.div animate={{ x: [0, -60, 0], y: [0, 40, 0] }} transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute top-1/4 -right-48 h-[620px] w-[620px] rounded-full bg-[#67e8f9]/[0.09] blur-[160px]" />
-      <motion.div animate={{ x: [0, 30, 0], y: [0, 30, 0] }} transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -bottom-40 left-1/3 h-[460px] w-[460px] rounded-full bg-[#0e7490]/[0.09] blur-[120px]" />
-    </div>
-  )
-}
-
-function GridBg() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0"
-      style={{
-        backgroundImage: 'linear-gradient(rgba(103,232,249,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(103,232,249,0.055) 1px, transparent 1px)',
-        backgroundSize: '54px 54px',
-        maskImage: 'radial-gradient(ellipse 90% 75% at 50% 25%, black 25%, transparent 78%)',
-        WebkitMaskImage: 'radial-gradient(ellipse 90% 75% at 50% 25%, black 25%, transparent 78%)',
-      }} />
-  )
-}
-
-function Noise() {
-  return <div aria-hidden className="noise-fx pointer-events-none absolute inset-0 opacity-[0.05]" />
-}
-
-/* ================= ROBOT / SERVO MOTION KIT ================= */
-function gearPath(teeth, rOut, rRoot) {
-  const pts = []
-  const step = (Math.PI * 2) / teeth
-  for (let i = 0; i < teeth; i++) {
-    const a = i * step
-    const segs = [
-      [rRoot, a], [rRoot, a + step * 0.30],
-      [rOut, a + step * 0.36], [rOut, a + step * 0.60],
-      [rRoot, a + step * 0.66], [rRoot, a + step],
-    ]
-    for (const [r, ang] of segs) pts.push(`${(r * Math.cos(ang)).toFixed(1)},${(r * Math.sin(ang)).toFixed(1)}`)
-  }
-  return `M${pts.join('L')}Z`
-}
-
-function Gear({ teeth = 14, size = 120, seconds = 14, reverse = false, className = '', stroke = '#22d3ee' }) {
-  const d = useMemo(() => gearPath(teeth, 96, 76), [teeth])
-  return (
-    <svg viewBox="-100 -100 200 200" width={size} height={size} className={className} aria-hidden>
-      <circle r="97" fill="none" stroke={stroke} strokeWidth="1" opacity="0.25" strokeDasharray="4 7" />
-      <g className="gear-rotor" style={{ animationDuration: `${seconds}s`, animationDirection: reverse ? 'reverse' : 'normal' }}>
-        <path d={d} fill="rgba(34,211,238,0.07)" stroke={stroke} strokeWidth={5} strokeLinejoin="round" />
-        {[0, 60, 120].map(a => (
-          <line key={a} x1="0" y1="-26" x2="0" y2="-64" stroke={stroke} strokeWidth={5} strokeLinecap="round" opacity="0.5" transform={`rotate(${a})`} />
-        ))}
-        <circle r="24" fill="#06090d" stroke={stroke} strokeWidth={5} />
-        <circle r="7" fill={stroke} opacity="0.9" />
-      </g>
-    </svg>
-  )
-}
-
-function GearTrain({ className = '' }) {
-  return (
-    <div className={`relative ${className}`} aria-hidden>
-      <div className="absolute inset-4 rounded-full border border-dashed border-cyan-400/20 animate-vew-spin-slow" />
-      <Gear teeth={20} size={230} seconds={26} className="absolute left-[2%] top-[4%]" />
-      <Gear teeth={13} size={152} seconds={16.9} reverse className="absolute right-[6%] top-[26%]" />
-      <Gear teeth={16} size={186} seconds={20.8} className="absolute left-[32%] bottom-[0%]" />
-      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <span className="block h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_18px_4px_rgba(34,211,238,0.7)] animate-vew-blink" />
-      </div>
-    </div>
-  )
-}
-
-function Typewriter({ lines = [], className = '', speed = 30, hold = 2400 }) {
-  const [out, setOut] = useState('')
-  useEffect(() => {
-    let li = 0, ci = 0, timer = null, cancelled = false
-    const tick = () => {
-      if (cancelled) return
-      const line = lines[li] || ''
-      if (ci <= line.length) {
-        setOut(lines.slice(0, li).join('\n') + (li ? '\n' : '') + line.slice(0, ci))
-        ci++
-        timer = setTimeout(tick, speed)
-      } else {
-        li++; ci = 0
-        if (li >= lines.length) {
-          timer = setTimeout(() => { if (!cancelled) { li = 0; ci = 0; setOut(''); tick() } }, hold)
-        } else {
-          timer = setTimeout(tick, speed * 5)
-        }
-      }
-    }
-    tick()
-    return () => { cancelled = true; if (timer) clearTimeout(timer) }
-  }, [lines.join('|')])
-  return <pre className={className}>{out}<span className="terminal-caret">▊</span></pre>
-}
-
-function Scanline({ className = '' }) {
-  return <div aria-hidden className={`scanline ${className}`} />
-}
-
-function Counter({ to, decimals = 0, prefix = '', suffix = '', duration = 1.8 }) {
-  const ref = useRef(null)
-  const started = useRef(false)
-  const [val, setVal] = useState(0)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const io = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && !started.current) {
-        started.current = true
-        const t0 = performance.now()
-        const tick = now => {
-          const p = Math.min(1, (now - t0) / (duration * 1000))
-          setVal(to * (1 - Math.pow(1 - p, 3)))
-          if (p < 1) requestAnimationFrame(tick)
-        }
-        requestAnimationFrame(tick)
-        io.disconnect()
-      }
-    }, { threshold: 0.4 })
-    io.observe(el)
-    return () => io.disconnect()
-  }, [to, duration])
-  return <span ref={ref}>{prefix}{val.toFixed(decimals)}{suffix}</span>
-}
-
-function GlowCard({ children, className = '' }) {
-  return (
-    <div className={`group relative rounded-2xl border border-white/10 bg-[#0a1016]/90 backdrop-blur-sm p-7 overflow-hidden transition-all duration-300 hover:border-[#22d3ee]/60 hover:shadow-[0_0_60px_-12px_rgba(34,211,238,0.45)] hover:-translate-y-1 ${className}`}>
-      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#22d3ee]/70 to-transparent opacity-60" />
-      <div className="pointer-events-none absolute -top-24 -right-24 h-48 w-48 rounded-full bg-[#22d3ee]/10 blur-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-      {children}
-    </div>
-  )
-}
-
-function SpotCard({ children, className = '', onClick }) {
-  const ref = useRef(null)
-  const onMove = (e) => {
-    const el = ref.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    el.style.setProperty('--mx', `${e.clientX - r.left}px`)
-    el.style.setProperty('--my', `${e.clientY - r.top}px`)
-  }
-  return (
-    <div ref={ref} onMouseMove={onMove} onClick={onClick} className={`spot-card ${className}`}>
-      {children}
-    </div>
-  )
-}
+// ============== SHARED UI PRIMITIVES ==============
 
 // ============== APP-LEVEL CHROME ==============
-function ScrollProgress() {
-  const { scrollYProgress } = useScroll()
-  return <motion.div style={{ scaleX: scrollYProgress }} className="fixed top-0 left-0 right-0 h-[3px] z-[120] origin-left bg-gradient-to-r from-[#a5f3fc] via-[#22d3ee] to-[#0e7490]" />
-}
-
-function CapRow({ c, i }) {
-  const [open, setOpen] = useState(false)
-  const Icon = c.icon
-  return (
-    <div className="border-b border-white/10">
-      <button onClick={() => setOpen(!open)} aria-expanded={open} className="w-full flex items-center gap-5 md:gap-8 py-6 text-left group">
-        <span className="font-tech text-sm text-[#22d3ee] w-10 shrink-0">{String(i + 1).padStart(2, '0')}</span>
-        <span className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#22d3ee]/20 to-[#22d3ee]/5 border border-[#22d3ee]/30 hidden sm:flex items-center justify-center shrink-0">
-          <Icon className="h-5 w-5 text-[#67e8f9]" />
-        </span>
-        <span className="font-display text-2xl md:text-4xl font-bold text-[#eef3f6] group-hover:text-[#67e8f9] transition-colors flex-1 tracking-tight">{c.title}</span>
-        <span className={`font-display text-3xl text-[#22d3ee] leading-none transition-transform duration-300 ${open ? 'rotate-45' : ''}`}>+</span>
-      </button>
-      <div className={`grid transition-all duration-500 ease-out ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-        <div className="overflow-hidden">
-          <p className="pb-7 pl-[4.5rem] md:pl-[7rem] pr-4 text-[#8b98a5] text-lg font-light leading-relaxed max-w-2xl">{c.desc}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ============== NAV ==============
 function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
@@ -493,8 +288,8 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
 function Footer({ setRoute, cms }) {
   return (
     <footer className="bg-slate-950 text-slate-400 border-t border-slate-900">
-      <div className="container mx-auto px-4 py-16 grid md:grid-cols-4 gap-10">
-        <div className="space-y-4">
+      <div className="container mx-auto px-4 py-16 grid grid-cols-2 md:grid-cols-5 gap-10">
+        <div className="col-span-2 md:col-span-1 space-y-4">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center text-cyan-400 border border-slate-800">
               <Cog className="h-5 w-5" strokeWidth={2.2} />
@@ -531,6 +326,13 @@ function Footer({ setRoute, cms }) {
           </ul>
         </div>
         <div>
+          <div className="text-white font-semibold text-xs uppercase tracking-wider mb-4 font-tech">Legal</div>
+          <ul className="space-y-2.5 text-xs sm:text-sm">
+            <li><button onClick={() => setRoute('privacy')} className="hover:text-cyan-400 transition-colors cursor-pointer">Privacy Policy</button></li>
+            <li><button onClick={() => setRoute('terms')} className="hover:text-cyan-400 transition-colors cursor-pointer">Terms & Conditions</button></li>
+          </ul>
+        </div>
+        <div className="col-span-2 md:col-span-1">
           <div className="text-white font-semibold text-xs uppercase tracking-wider mb-4 font-tech">Plant Office</div>
           <ul className="space-y-3 text-xs sm:text-sm">
             {cms?.phone && (
@@ -563,7 +365,13 @@ function Footer({ setRoute, cms }) {
       <div className="border-t border-slate-900 py-6 text-center text-xs text-slate-500 font-tech">
         <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>© {new Date().getFullYear()} {cms?.companyName || 'Vijaya Engineering Works'}. All rights reserved.</span>
-          <span className="text-[11px] text-slate-600">Precision Gears · Hyderabad, Telangana · 17.5126° N, 78.4642° E</span>
+          <div className="flex items-center gap-3 text-[11px] text-slate-500">
+            <button onClick={() => setRoute('privacy')} className="hover:text-cyan-400 transition-colors cursor-pointer">Privacy</button>
+            <span>·</span>
+            <button onClick={() => setRoute('terms')} className="hover:text-cyan-400 transition-colors cursor-pointer">Terms</button>
+            <span>·</span>
+            <span className="text-slate-600">Precision Gears · Hyderabad, Telangana · 17.5126° N, 78.4642° E</span>
+          </div>
         </div>
       </div>
     </footer>
@@ -866,32 +674,25 @@ function ProductionTracker({ stages, canEdit, onUpdate }) {
 // ============== PRODUCTS/PRODUCT DETAIL/OTHER PAGES ==============
 function ProductsPage({ setRoute, cms }) {
   return (
-    <div className="bg-[#06090d] min-h-screen">
-      <div className="container mx-auto px-4 py-20">
-        <FadeIn>
-          <Eyebrow>Products</Eyebrow>
-          <h1 className="font-display text-5xl md:text-6xl font-bold text-[#eef3f6] mb-4 tracking-tight">Our <span className="text-servo">Products</span></h1>
-          <p className="text-[#8b98a5] mb-12 max-w-2xl text-lg font-light">Every gear we manufacture is built from your drawings and specifications.</p>
-        </FadeIn>
-        <motion.div initial="hidden" animate="visible" variants={stagger} className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {PRODUCTS.map((p, pi) => (
-            <motion.div key={p.key} variants={fadeUp} whileHover={{ y: -8 }}>
-              <SpotCard onClick={() => setRoute('product:' + p.key)}
-                className="overflow-hidden group cursor-pointer rounded-2xl bg-[#0a1016]/90 border border-white/10 hover:border-[#22d3ee]/60 backdrop-blur-sm transition-all duration-300 hover:shadow-[0_0_50px_-12px_rgba(34,211,238,0.35)] h-full">
-                <div className="aspect-[4/3] overflow-hidden bg-black relative">
-                  <ResponsiveImage src={p.img} alt={p.title} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" whileHover={{ scale: 1.08 }} transition={{ duration: 0.6 }} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a1016]/70 via-transparent to-transparent" />
-                  <div className="absolute top-4 right-4 font-tech text-[10px] tracking-[0.2em] text-white/80 bg-black/45 backdrop-blur px-2.5 py-1 rounded-full border border-white/15">{String(pi + 1).padStart(2, '0')}</div>
-                </div>
-                <div className="p-6">
-                  <h3 className="font-display font-bold text-xl text-[#eef3f6] mb-2 group-hover:text-[#67e8f9] transition-colors">{p.title}</h3>
-                  <p className="text-sm text-[#8b98a5] leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
-                  <div className="mt-4 text-[#22d3ee] font-tech text-xs uppercase tracking-[0.2em] flex items-center gap-1.5 group-hover:gap-3 transition-all">Learn more <ArrowRight className="h-4 w-4" /></div>
-                </div>
-              </SpotCard>
-            </motion.div>
+    <div className="bg-white text-neutral-900 min-h-screen">
+      <div className="container mx-auto px-4 py-14 md:py-20">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Products</p>
+        <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight">Our products</h1>
+        <p className="mt-4 text-lg text-neutral-600 max-w-2xl">Every gear we manufacture is built from your drawings and specifications.</p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mt-10">
+          {PRODUCTS.map((p) => (
+            <button key={p.key} onClick={() => setRoute('product:' + p.key)} className="text-left bg-white rounded-2xl overflow-hidden border border-neutral-200">
+              <div className="aspect-[4/3] bg-neutral-100 overflow-hidden">
+                <Image src={p.img} alt={p.title} width={800} height={600} className="w-full h-full object-cover" loading="lazy" />
+              </div>
+              <div className="p-5">
+                <h3 className="font-display font-bold text-xl">{p.title}</h3>
+                <p className="text-sm text-neutral-500 mt-1">{cms?.productDescriptions?.[p.key] || p.apps.slice(0, 3).join(' · ')}</p>
+                <span className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium">Explore <ArrowRight className="h-4 w-4" /></span>
+              </div>
+            </button>
           ))}
-        </motion.div>
+        </div>
       </div>
     </div>
   )
@@ -899,60 +700,52 @@ function ProductsPage({ setRoute, cms }) {
 
 function ProductDetail({ productKey, setRoute, cms }) {
   const p = PRODUCTS.find(x => x.key === productKey)
-  if (!p) return <div className="bg-[#06090d] min-h-screen"><div className="container mx-auto px-4 py-16 text-white">Product not found.</div></div>
+  if (!p) return <div className="bg-white min-h-screen"><div className="container mx-auto px-4 py-16">Product not found.</div></div>
   return (
-    <div className="bg-[#06090d]">
-      <section className="relative text-white overflow-hidden">
-        <Orbs />
-        <div className="relative container mx-auto px-4 py-20 grid md:grid-cols-2 gap-12 items-center">
-          <FadeIn>
-            <button onClick={() => setRoute('products')} className="text-[#8b98a5] hover:text-[#67e8f9] text-sm mb-6 flex items-center transition-colors"><ArrowLeft className="h-4 w-4 mr-1" /> All Products</button>
-            <Eyebrow>Product</Eyebrow>
-            <h1 className="font-display text-5xl md:text-6xl font-bold mb-5 tracking-tight text-[#eef3f6]">{p.title}</h1>
-            <p className="text-[#8b98a5] mb-8 text-lg font-light leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
-            <Button size="lg" onClick={() => setRoute('rfq')} className="btn-servo font-tech uppercase tracking-[0.18em] text-sm h-12 px-8 rounded-full">Request a Quote <ArrowRight className="ml-2 h-4 w-4" /></Button>
-          </FadeIn>
-          <FadeIn delay={0.2}>
-            <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-[0_0_80px_-20px_rgba(34,211,238,0.45)]">
-              <ResponsiveImage src={p.img} alt={p.title} className="w-full aspect-[4/3] object-cover" whileHover={{ scale: 1.02 }} transition={{ duration: 0.4 }} />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#06090d]/50 to-transparent" />
-            </div>
-          </FadeIn>
+    <div className="bg-white text-neutral-900">
+      <section className="container mx-auto px-4 py-14 md:py-20 grid md:grid-cols-2 gap-10 items-center">
+        <div>
+          <button onClick={() => setRoute('products')} className="text-neutral-500 hover:text-neutral-900 text-sm mb-6 flex items-center"><ArrowLeft className="h-4 w-4 mr-1" /> All Products</button>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Product</p>
+          <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">{p.title}</h1>
+          <p className="text-neutral-600 mb-8 text-lg leading-relaxed">{cms?.productDescriptions?.[p.key]}</p>
+          <Button size="lg" onClick={() => setRoute('rfq')} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700 h-12 px-8">Request a Quote <ArrowRight className="ml-2 h-4 w-4" /></Button>
+        </div>
+        <div className="rounded-2xl overflow-hidden bg-neutral-100">
+          <Image src={p.img} alt={p.title} width={900} height={675} className="w-full aspect-[4/3] object-cover" loading="lazy" />
         </div>
       </section>
-      <section className="border-y border-white/10 bg-[#080d13]">
+      <section className="border-y border-neutral-200 bg-neutral-100">
         <div className="container mx-auto px-4 py-8 grid grid-cols-2 md:grid-cols-4 gap-6">
           {[['±0.002 mm', 'Grinding tolerance'], ['AGMA Q12', 'Gear quality grade'], ['1200 mm', 'Max outside diameter'], ['6+', 'Material families']].map(([v, l]) => (
-            <div key={l} className="flex items-center gap-3">
-              <div className="font-display text-2xl font-bold text-servo whitespace-nowrap">{v}</div>
-              <div className="font-tech text-[10px] uppercase tracking-[0.18em] text-[#8b98a5] leading-relaxed">{l}</div>
+            <div key={l}>
+              <div className="font-display text-2xl font-bold whitespace-nowrap">{v}</div>
+              <div className="text-xs uppercase tracking-[0.14em] text-neutral-500 mt-1">{l}</div>
             </div>
           ))}
         </div>
       </section>
-      <FadeIn>
-        <section className="container mx-auto px-4 py-16 grid md:grid-cols-3 gap-6">
-          {[
-            { title: 'Typical Applications', items: p.apps },
-            { title: 'Available Materials', items: ['Alloy Steel (4140, 4340, 8620)','Carbon Steel','Stainless Steel','Bronze','Cast Iron','Custom on request'] },
-            { title: 'Manufacturing Options', items: ['Gear cutting & hobbing','Precision grinding','Heat treatment','CMM inspection','Lapping & finishing'] }
-          ].map((col, i) => (
-            <GlowCard key={i}>
-              <h3 className="font-display font-bold text-[#eef3f6] mb-4 text-lg">{col.title}</h3>
-              <ul className="space-y-2.5 text-[#8b98a5] text-sm">{col.items.map(a => <li key={a} className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-[#22d3ee] mt-0.5 shrink-0" /> {a}</li>)}</ul>
-            </GlowCard>
-          ))}
-        </section>
-      </FadeIn>
-      <section className="container mx-auto px-4 pb-24">
+      <section className="container mx-auto px-4 py-14 grid md:grid-cols-3 gap-5">
+        {[
+          { title: 'Typical Applications', items: p.apps },
+          { title: 'Available Materials', items: ['Alloy Steel (4140, 4340, 8620)','Carbon Steel','Stainless Steel','Bronze','Cast Iron','Custom on request'] },
+          { title: 'Manufacturing Options', items: ['Gear cutting & hobbing','Precision grinding','Heat treatment','CMM inspection','Lapping & finishing'] }
+        ].map((col, i) => (
+          <div key={i} className="rounded-2xl border border-neutral-200 p-6">
+            <h3 className="font-display font-bold mb-4 text-lg">{col.title}</h3>
+            <ul className="space-y-2.5 text-neutral-600 text-sm">{col.items.map(a => <li key={a} className="flex items-start gap-2"><CheckCircle2 className="h-5 w-5 text-neutral-900 mt-0.5 shrink-0" /> {a}</li>)}</ul>
+          </div>
+        ))}
+      </section>
+      <section className="container mx-auto px-4 pb-20">
         <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
-          <h3 className="font-display font-bold text-[#eef3f6] text-2xl tracking-tight">Gallery</h3>
-          <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full border-white/25 text-white bg-white/5 hover:bg-white hover:text-black font-tech uppercase tracking-[0.18em] text-xs">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
+          <h3 className="font-display font-bold text-2xl tracking-tight">Gallery</h3>
+          <Button variant="outline" onClick={() => setRoute('gallery')} className="rounded-full">View all <ArrowRight className="h-4 w-4 ml-1" /></Button>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {GALLERY.slice(0, 4).map(photo => (
-            <button key={photo.src} onClick={() => setRoute('gallery')} className="rounded-xl overflow-hidden border border-white/10 bg-black hover:border-[#22d3ee]/60 transition-colors cursor-pointer">
-              <ResponsiveImage src={photo.src} alt={photo.alt} className="aspect-square w-full h-full object-contain" whileHover={{ scale: 1.03 }} />
+            <button key={photo.src} onClick={() => setRoute('gallery')} className="rounded-xl overflow-hidden bg-neutral-100 aspect-square cursor-pointer">
+              <Image src={photo.src} alt={photo.alt} width={600} height={600} className="w-full h-full object-cover" loading="lazy" />
             </button>
           ))}
         </div>
@@ -971,32 +764,24 @@ function CapabilitiesPage() {
     { title: 'Prototype to Production', desc: 'From one-off prototype gears to full production runs.', img: HERO_IMG },
   ]
   return (
-    <div className="bg-[#06090d]">
-      <section className="relative text-white py-24 overflow-hidden">
-        <Orbs />
-        <GridBg />
-        <div className="relative container mx-auto px-4"><FadeIn>
-          <Eyebrow>Capabilities</Eyebrow>
-          <h1 className="font-display text-5xl md:text-6xl font-bold mb-5 tracking-tight text-[#eef3f6]">Manufacturing <span className="text-servo">Capabilities</span></h1>
-          <p className="text-[#8b98a5] max-w-2xl text-lg font-light">A complete in-house manufacturing suite from raw material through inspection.</p>
-        </FadeIn></div>
+    <div className="bg-white text-neutral-900">
+      <section className="container mx-auto px-4 py-14 md:py-20">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Capabilities</p>
+        <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">Manufacturing capabilities</h1>
+        <p className="text-neutral-600 max-w-2xl text-lg">A complete in-house manufacturing suite from raw material through inspection.</p>
       </section>
-      <section className="container mx-auto px-4 pb-24 space-y-16">
+      <section className="container mx-auto px-4 pb-20 space-y-14">
         {sections.map((s, i) => (
-          <FadeIn key={i}>
-            <div className={`grid md:grid-cols-2 gap-10 items-center ${i % 2 ? 'md:[&>div:first-child]:order-2' : ''}`}>
-              <div className="relative rounded-2xl overflow-hidden border border-white/10 group">
-                <ResponsiveImage src={s.img} alt={s.title} className="w-full aspect-video object-cover" whileHover={{ scale: 1.04 }} transition={{ duration: 0.6 }} />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#06090d]/70 via-transparent to-transparent" />
-                <div className="absolute inset-0 rounded-2xl border border-[#22d3ee]/0 group-hover:border-[#22d3ee]/50 transition-colors duration-500" />
-              </div>
-              <div>
-                <div className="font-display text-7xl md:text-8xl font-bold text-stroke-faint leading-none mb-5 select-none" aria-hidden>{String(i + 1).padStart(2, '0')}</div>
-                <h2 className="font-display text-3xl md:text-4xl font-bold text-[#eef3f6] mb-4 tracking-tight">{s.title}</h2>
-                <p className="text-[#8b98a5] text-lg leading-relaxed font-light">{s.desc}</p>
-              </div>
+          <div key={i} className={`grid md:grid-cols-2 gap-8 items-center ${i % 2 ? 'md:[&>div:first-child]:order-2' : ''}`}>
+            <div className="rounded-2xl overflow-hidden bg-neutral-100">
+              <Image src={s.img} alt={s.title} width={900} height={560} className="w-full aspect-video object-cover" loading="lazy" />
             </div>
-          </FadeIn>
+            <div>
+              <div className="text-sm font-semibold text-neutral-400 mb-3">{String(i + 1).padStart(2, '0')}</div>
+              <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-3">{s.title}</h2>
+              <p className="text-neutral-600 text-lg leading-relaxed">{s.desc}</p>
+            </div>
+          </div>
         ))}
       </section>
     </div>
@@ -1018,33 +803,30 @@ function GalleryPage() {
   }, [lightbox])
   const active = lightbox === null ? null : GALLERY[lightbox]
   return (
-    <div className="bg-[#06090d] min-h-screen">
-    <div className="container mx-auto px-4 py-20">
-      <FadeIn>
-        <Eyebrow>Gallery</Eyebrow>
-        <h1 className="font-display text-5xl font-bold text-[#eef3f6] mb-4 tracking-tight">Inside our <span className="text-servo">workshop</span></h1>
-        <p className="text-[#8b98a5] mb-12 text-lg max-w-2xl font-light">Photos of our equipment, machining work, and gear components. Click any photo to enlarge it.</p>
-      </FadeIn>
-      <motion.div initial="hidden" animate="visible" variants={stagger} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="bg-white text-neutral-900 min-h-screen">
+    <div className="container mx-auto px-4 py-14 md:py-20">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Gallery</p>
+      <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">Inside our workshop</h1>
+      <p className="text-neutral-600 mb-10 text-lg max-w-2xl">Photos of our equipment, machining work, and gear components. Click any photo to enlarge it.</p>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {GALLERY.map((photo, i) => (
-          <motion.figure key={photo.src} variants={fadeUp} whileHover={{ y: -3 }} onClick={() => setLightbox(i)} className="rounded-2xl overflow-hidden bg-[#0a1016]/90 border border-white/10 backdrop-blur-sm cursor-pointer hover:border-[#22d3ee]/60 hover:shadow-[0_0_40px_-12px_rgba(34,211,238,0.4)] transition-all">
-            <div className="aspect-square bg-black"><ResponsiveImage src={photo.src} alt={photo.alt} className="w-full h-full object-contain" /></div>
-            <figcaption className="px-3 py-2.5 text-sm font-medium text-[#8b98a5]">{photo.caption}</figcaption>
-          </motion.figure>
+          <figure key={photo.src} onClick={() => setLightbox(i)} className="rounded-2xl overflow-hidden bg-white border border-neutral-200 cursor-pointer">
+            <div className="aspect-square bg-neutral-100"><Image src={photo.src} alt={photo.alt} width={600} height={600} className="w-full h-full object-cover" loading="lazy" /></div>
+            <figcaption className="px-3 py-2.5 text-sm font-medium text-neutral-500">{photo.caption}</figcaption>
+          </figure>
         ))}
-      </motion.div>
+      </div>
       <AnimatePresence>
         {active && createPortal((
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setLightbox(null)}
-            className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div onClick={() => setLightbox(null)}
+            className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4">
             <button aria-label="Close" onClick={() => setLightbox(null)} className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition">
               <X className="h-6 w-6" />
             </button>
             <button aria-label="Previous photo" onClick={e => { e.stopPropagation(); setLightbox((lightbox - 1 + GALLERY.length) % GALLERY.length) }} className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition">
               <ArrowLeft className="h-6 w-6" />
             </button>
-            <motion.img key={active.src} src={active.src} alt={active.alt} onClick={e => e.stopPropagation()}
-              initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.25 }}
+            <img key={active.src} src={active.src} alt={active.alt} onClick={e => e.stopPropagation()}
               className="max-h-[82vh] max-w-[94vw] rounded-xl shadow-2xl object-contain" />
             <button aria-label="Next photo" onClick={e => { e.stopPropagation(); setLightbox((lightbox + 1) % GALLERY.length) }} className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition">
               <ArrowRight className="h-6 w-6" />
@@ -1052,7 +834,7 @@ function GalleryPage() {
             <div className="absolute bottom-5 left-1/2 -translate-x-1/2 text-white/90 text-sm bg-white/10 rounded-full px-4 py-1.5 whitespace-nowrap">
               {active.caption} · {lightbox + 1} of {GALLERY.length}
             </div>
-          </motion.div>
+          </div>
         ), document.body)}
       </AnimatePresence>
     </div>
@@ -1062,44 +844,32 @@ function GalleryPage() {
 
 function AboutPage({ cms }) {
   return (
-    <div className="bg-[#06090d]">
-      <section className="relative py-24 overflow-hidden">
-        <Orbs />
-        <div className="relative container mx-auto px-4 max-w-4xl">
-          <FadeIn>
-            <Eyebrow>About us</Eyebrow>
-            <h1 className="font-display text-5xl md:text-6xl font-bold text-[#eef3f6] mb-10 tracking-tight">{cms?.aboutTitle || 'About Vijaya Engineering Works'}</h1>
-          </FadeIn>
-          <FadeIn delay={0.1}>
-            <div className="relative rounded-2xl overflow-hidden border border-white/10 mb-10">
-              <ResponsiveImage src={IMG_2} alt="Precision gears manufactured by Vijaya Engineering Works" className="w-full aspect-[21/9] object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#06090d]/80 via-transparent to-transparent" />
+    <div className="bg-white text-neutral-900">
+      <section className="container mx-auto px-4 py-14 md:py-20 max-w-4xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">About us</p>
+        <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-10">{cms?.aboutTitle || 'About Vijaya Engineering Works'}</h1>
+        <div className="rounded-2xl overflow-hidden bg-neutral-100 mb-10">
+          <Image src={IMG_2} alt="Precision gears manufactured by Vijaya Engineering Works" width={1200} height={514} className="w-full aspect-[21/9] object-cover" loading="lazy" />
+        </div>
+        <p className="text-neutral-600 text-lg leading-relaxed whitespace-pre-line">{cms?.aboutText}</p>
+        <div className="grid grid-cols-3 gap-4 mt-12">
+          {[
+            { v: '30+', l: 'Years' },
+            { v: 'Q12', l: 'AGMA grade' },
+            { v: '1200 mm', l: 'Max OD' },
+          ].map((s, i) => (
+            <div key={i} className="text-center rounded-2xl border border-neutral-200 p-5">
+              <div className="font-display text-2xl md:text-3xl font-bold">{s.v}</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 mt-1">{s.l}</div>
             </div>
-          </FadeIn>
-          <FadeIn delay={0.15}>
-            <p className="text-[#cfd8de] text-lg leading-relaxed whitespace-pre-line font-light">{cms?.aboutText}</p>
-          </FadeIn>
-          <FadeIn delay={0.2}>
-            <div className="grid grid-cols-3 gap-4 mt-12">
-              {[
-                { v: <Counter to={30} suffix="+" />, l: 'Years' },
-                { v: 'Q12', l: 'AGMA grade' },
-                { v: <Counter to={1200} suffix=" mm" />, l: 'Max OD' },
-              ].map((s, i) => (
-                <GlowCard key={i} className="text-center p-5">
-                  <div className="font-display text-2xl md:text-3xl font-bold text-servo">{s.v}</div>
-                  <div className="font-tech text-[11px] uppercase tracking-[0.18em] text-[#8b98a5] mt-1">{s.l}</div>
-                </GlowCard>
-              ))}
-            </div>
-          </FadeIn>
+          ))}
         </div>
       </section>
     </div>
   )
 }
 
-function ContactPage({ cms }) {
+function ContactPage({ cms, setRoute }) {
   const [contact, setContact] = useState({ name: '', email: '', message: '' })
   const contactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cms?.email || '') ? cms.email : null
   function composeContact(e) {
@@ -1108,267 +878,200 @@ function ContactPage({ cms }) {
     window.location.href = `mailto:${contactEmail}?subject=${encodeURIComponent('Website enquiry from ' + contact.name)}&body=${encodeURIComponent(contact.message + '\n\nFrom: ' + contact.name + '\nEmail: ' + contact.email)}`
   }
   const infoRows = [
-    { icon: Phone, label: 'Phone', body: cms?.phone ? <a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="text-white hover:text-[#67e8f9] transition-colors">{cms.phone}</a> : 'Please use a quote request to contact us.' },
-    { icon: Mail, label: 'Email', body: contactEmail ? <a href={`mailto:${contactEmail}`} className="break-all text-white hover:text-[#67e8f9] transition-colors">{contactEmail}</a> : 'Contact email is being updated.' },
-    { icon: MapPin, label: 'Address', body: <>{cms?.address}<div><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="text-[#22d3ee] hover:text-[#67e8f9]">View our location on Google Maps</a></div></> },
-    { icon: Globe2, label: 'Website', body: <a href={COMPANY_URL} className="break-all text-white hover:text-[#67e8f9] transition-colors">vijayaengineeringworks.com</a> },
+    { icon: Phone, label: 'Phone', body: cms?.phone ? <a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:underline">{cms.phone}</a> : 'Please use a quote request to contact us.' },
+    { icon: Mail, label: 'Email', body: contactEmail ? <a href={`mailto:${contactEmail}`} className="break-all hover:underline">{contactEmail}</a> : 'Contact email is being updated.' },
+    { icon: MapPin, label: 'Address', body: <>{cms?.address}<div><a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">View our location on Google Maps</a></div></> },
+    { icon: Globe2, label: 'Website', body: <a href={COMPANY_URL} className="break-all hover:underline">vijayaengineeringworks.com</a> },
     { icon: Building2, label: 'Hours', body: cms?.hours },
   ]
   return (
-    <div className="bg-[#06090d] min-h-screen">
-    <div className="container mx-auto px-4 py-20">
-      <FadeIn>
-        <Eyebrow>Contact</Eyebrow>
-        <h1 className="font-display text-5xl font-bold text-[#eef3f6] mb-4 tracking-tight">Contact <span className="text-servo">Us</span></h1>
-        <p className="text-[#8b98a5] mb-10 text-lg font-light max-w-2xl">Tell us about your project — we reply to every enquiry.</p>
-      </FadeIn>
+    <div className="bg-white text-neutral-900 min-h-screen">
+    <div className="container mx-auto px-4 py-14 md:py-20">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Contact</p>
+      <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">Contact us</h1>
+      <p className="text-neutral-600 mb-10 text-lg max-w-2xl">Tell us about your project — we reply to every enquiry.</p>
       <div className="grid md:grid-cols-2 gap-8">
-        <FadeIn><div className="space-y-3">
+        <div className="space-y-3">
           {infoRows.map((r, i) => (
-            <div key={i} className="flex items-start gap-4 rounded-2xl border border-white/10 bg-[#0a1016]/90 backdrop-blur-sm p-5 hover:border-[#22d3ee]/50 transition-colors">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#22d3ee]/25 to-[#22d3ee]/5 border border-[#22d3ee]/40 flex items-center justify-center shrink-0">
-                <r.icon className="h-5 w-5 text-[#67e8f9]" />
+            <div key={i} className="flex items-start gap-4 rounded-2xl border border-neutral-200 p-5">
+              <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center shrink-0">
+                <r.icon className="h-5 w-5 text-neutral-900" />
               </div>
-              <div className="min-w-0"><div className="font-tech text-[11px] uppercase tracking-[0.18em] text-[#8b98a5] mb-1">{r.label}</div><div className="text-[#cfd8de]">{r.body}</div></div>
+              <div className="min-w-0"><div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500 mb-1">{r.label}</div><div className="text-neutral-700">{r.body}</div></div>
             </div>
           ))}
-        </div></FadeIn>
-        <FadeIn delay={0.1}>
-          <div className="rounded-2xl border border-white/10 bg-[#0a1016]/90 backdrop-blur-sm p-6 md:p-8">
-            <form onSubmit={composeContact} className="space-y-4">
-              <label className="block text-sm text-[#cfd8de]">Name<Input required placeholder="Your name" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} className="mt-1.5" /></label>
-              <label className="block text-sm text-[#cfd8de]">Email<Input required type="email" placeholder="you@example.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} className="mt-1.5" /></label>
-              <label className="block text-sm text-[#cfd8de]">Message<Textarea required placeholder="How can we help?" rows={4} value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} className="mt-1.5" /></label>
-              <Button disabled={!contactEmail} className="btn-servo font-tech uppercase tracking-[0.18em] text-sm w-full rounded-full h-12">Compose email</Button>
-              <p className="text-xs text-[#8b98a5]">Opens your email app so you can review and send your message.</p>
-            </form>
-          </div>
-        </FadeIn>
+        </div>
+        <div className="rounded-2xl border border-neutral-200 p-6 md:p-8 h-fit">
+          <form onSubmit={composeContact} className="space-y-4">
+            <label className="block text-sm">Name<Input required placeholder="Your name" value={contact.name} onChange={e => setContact({ ...contact, name: e.target.value })} className="mt-1.5" /></label>
+            <label className="block text-sm">Email<Input required type="email" placeholder="you@example.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })} className="mt-1.5" /></label>
+            <label className="block text-sm">Message<Textarea required placeholder="How can we help?" rows={4} value={contact.message} onChange={e => setContact({ ...contact, message: e.target.value })} className="mt-1.5" /></label>
+            <Button disabled={!contactEmail} className="w-full rounded-full bg-neutral-900 text-white hover:bg-neutral-700 h-12">Compose email</Button>
+            <p className="text-xs text-neutral-500">Opens your email app so you can review and send your message. By sending a message, you agree to our <button type="button" onClick={() => setRoute('privacy')} className="underline underline-offset-2 hover:text-neutral-900">Privacy Policy</button> and <button type="button" onClick={() => setRoute('terms')} className="underline underline-offset-2 hover:text-neutral-900">Terms & Conditions</button>.</p>
+          </form>
+        </div>
       </div>
     </div>
     </div>
   )
 }
 
-// ============== LOGIN / SIGNUP ==============
-function LoginPage({ setRoute, auth, authAction, clearAuthAction }) {
-  const [mode, setMode] = useState(authAction?.type || 'login')
-  const [form, setForm] = useState({ identifier: '', password: '', confirmPassword: '', email: '', phone: '', firstName: '', lastName: '', companyName: '' })
-  const [loading, setLoading] = useState(false)
-  const [welcome, setWelcome] = useState(null) // { name, isNew }
-  const [actionMessage, setActionMessage] = useState('')
-  const [actionError, setActionError] = useState('')
+// ============== LEGAL (Privacy Policy + Terms & Conditions) ==============
+const LEGAL_UPDATED = '8 October 2026'
 
-  useEffect(() => {
-    if (authAction) setMode(authAction.type)
-  }, [authAction])
-
-  async function confirmEmail() {
-    setLoading(true); setActionError(''); setActionMessage('')
-    try {
-      const r = await fetch('/api/auth/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token }) })
-      const d = await r.json()
-      if (!r.ok) { setActionError(d.error || 'Email verification failed'); return }
-      setActionMessage(d.message)
-    } catch (e) { setActionError(e.message) } finally { setLoading(false) }
-  }
-
-  async function resendVerification() {
-    const email = (form.email || form.identifier).trim()
-    if (!email || !email.includes('@')) { toast.error('Enter your email address'); return }
-    setLoading(true)
-    try {
-      const r = await fetch('/api/auth/resend-verification', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) })
-      const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to resend verification'); return }
-      setMode('verification-sent'); setActionMessage(d.message)
-    } catch (e) { toast.error(e.message) } finally { setLoading(false) }
-  }
-
-  async function submit(e) {
-    e.preventDefault()
-    setLoading(true)
-    try {
-      if (mode === 'login') {
-        try {
-          const u = await auth.login(form.identifier, form.password)
-          setWelcome({ name: u.firstName || 'there', isNew: false, role: u.role })
-        } catch (error) {
-          if (error.code === 'EMAIL_NOT_VERIFIED') { setForm({ ...form, email: form.identifier.includes('@') ? form.identifier : '' }); setMode('unverified'); return }
-          toast.error(error.message)
-          return
-        }
-      } else if (mode === 'signup') {
-        if (!form.email || !form.phone) { toast.error('Email and phone are both required'); setLoading(false); return }
-        const d = await auth.signup(form)
-        setActionMessage(d.message); setMode('verification-sent')
-      } else if (mode === 'forgot') {
-        const r = await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: form.identifier }) })
-        const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to request password reset'); return }
-        setActionMessage(d.message); setMode('reset-sent')
-      } else if (mode === 'reset') {
-        if (form.password !== form.confirmPassword) { toast.error('Passwords do not match'); return }
-        const r = await fetch('/api/auth/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: authAction?.token, password: form.password }) })
-        const d = await r.json(); if (!r.ok) { toast.error(d.error || 'Unable to reset password'); return }
-        await auth.logout(); toast.success(d.message); clearAuthAction?.(); setForm({ ...form, password: '', confirmPassword: '' }); setMode('login')
-      }
-    } catch (e) { toast.error(e.message) } finally { setLoading(false) }
-  }
-
-  function continueAfterWelcome() {
-    setRoute(isStaff(welcome) ? 'admin' : 'portal')
-  }
-
-  const titles = {
-    login: 'Sign in to your account', signup: 'Create your VEW account', forgot: 'Reset your password',
-    reset: 'Choose a new password', verify: 'Verify your email', unverified: 'Verify your email first',
-    'verification-sent': 'Check your email', 'reset-sent': 'Check your email',
-  }
-  const descriptions = {
-    login: 'Track your RFQs and production progress in real-time.', signup: 'Get instant quotes and live production tracking.',
-    forgot: 'Enter your email to receive reset instructions.', reset: 'Enter a secure new password for your account.',
-    verify: 'Confirm below to verify your email address.', unverified: 'We sent a verification link to your email address.',
-    'verification-sent': 'Open the verification link before signing in.', 'reset-sent': 'Open the password-reset link sent to your email.',
-  }
-
+function LegalShell({ eyebrow, title, cms, children }) {
   return (
-    <div className="min-h-[calc(100vh-4rem)] grid lg:grid-cols-[1.05fr_1fr] bg-[#06090d]">
-      {/* ============ BRAND PANEL ============ */}
-      <div className="relative hidden lg:flex flex-col justify-between overflow-hidden p-12 xl:p-16 text-white">
-        <div className="absolute inset-0">
-          <ResponsiveImage src={HERO_IMG} alt="" className="w-full h-full object-cover opacity-25" />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#06090d]/85 via-[#06090d]/92 to-[#06090d]" />
+    <div className="bg-white text-neutral-900 min-h-screen">
+      <div className="container mx-auto px-4 py-14 md:py-20 max-w-3xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">{eyebrow}</p>
+        <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-4">{title}</h1>
+        <p className="text-neutral-500 mb-10 text-sm">Last updated: {LEGAL_UPDATED}</p>
+        <div className="space-y-8 text-neutral-700 leading-relaxed">
+          {children}
+          <section>
+            <h2 className="text-neutral-900 font-semibold text-lg mb-2">Questions</h2>
+            <p className="text-sm">For questions about these policies, contact us at {cms?.email ? <a href={`mailto:${cms.email}`} className="underline underline-offset-4 hover:text-neutral-900">{cms.email}</a> : 'the email address on our Contact page'}.</p>
+          </section>
         </div>
-        <div className="absolute inset-0"><Orbs /></div>
-        <div className="relative flex items-center gap-3">
-          <GearLogo className="h-10 w-10" spin />
-          <div>
-            <div className="font-display font-bold text-lg tracking-tight">Vijaya Engineering Works</div>
-            <div className="font-tech text-[10px] uppercase tracking-[0.3em] text-[#67e8f9]">VEW · Precision Gears</div>
-          </div>
-        </div>
-        <div className="relative">
-          <div className="font-tech text-[11px] uppercase tracking-[0.42em] text-[#22d3ee] mb-6">{'// Customer portal'}</div>
-          <h2 className="font-display text-5xl xl:text-6xl font-bold tracking-tight leading-[1.02] mb-6">
-            Every gear.<br />
-            <span className="text-servo">Every stage.</span><br />
-            <span className="text-stroke">Live.</span>
-          </h2>
-          <p className="text-[#8b98a5] text-lg font-light max-w-md leading-relaxed">
-            Submit RFQs, approve quotes, and watch your gears move through ten production stages — in real time.
-          </p>
-          <div className="grid grid-cols-3 gap-6 mt-12 max-w-md border-t border-white/10 pt-8">
-            {[['30+', 'Years cutting'], ['Q12', 'AGMA grade'], ['±0.002', 'mm tolerance']].map(([v, l]) => (
-              <div key={l}>
-                <div className="font-display text-3xl font-bold text-[#eef3f6]">{v}</div>
-                <div className="font-tech text-[10px] uppercase tracking-[0.22em] text-[#8b98a5] mt-1.5">{l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="relative font-tech text-[10px] uppercase tracking-[0.32em] text-[#8b98a5]">ISO 9001 · AGMA Q12 · 1200 mm max OD</div>
       </div>
+    </div>
+  )
+}
 
-      {/* ============ FORM PANEL ============ */}
-      <div className="relative bg-white flex items-center justify-center px-6 py-12 sm:px-12 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(34,211,238,0.07),transparent)]" />
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }} className="relative w-full max-w-md">
-          <div className="lg:hidden flex items-center gap-2.5 mb-10">
-            <GearLogo className="h-9 w-9" spin />
-            <div className="font-display font-bold text-slate-900 tracking-tight">Vijaya Engineering Works</div>
-          </div>
-          <div className="font-tech text-[11px] uppercase tracking-[0.32em] text-cyan-600 mb-4">
-            {'// '}{mode === 'signup' ? 'Create account' : mode === 'login' ? 'Welcome back' : 'Account access'}
-          </div>
-          <h1 className="font-display text-4xl font-bold tracking-tight text-slate-900 mb-3">{titles[mode] || titles.login}</h1>
-          <p className="text-slate-500 mb-8 leading-relaxed">{descriptions[mode] || descriptions.login}</p>
+function LegalSection({ title, children }) {
+  return (
+    <section>
+      <h2 className="text-neutral-900 font-semibold text-lg mb-2">{title}</h2>
+      <div className="text-sm space-y-2">{children}</div>
+    </section>
+  )
+}
 
-          {['login','signup','forgot','reset'].includes(mode) && <form onSubmit={submit} className="space-y-4">
-            {mode === 'signup' && <>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-slate-900 font-medium">First Name *</Label><Input required className="mt-1.5 h-12 rounded-xl" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} /></div>
-                <div><Label className="text-slate-900 font-medium">Last Name *</Label><Input required className="mt-1.5 h-12 rounded-xl" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} /></div>
-              </div>
-              <div><Label className="text-slate-900 font-medium">Company Name</Label><Input className="mt-1.5 h-12 rounded-xl" value={form.companyName} onChange={e => setForm({ ...form, companyName: e.target.value })} /></div>
-              <div><Label className="text-slate-900 font-medium">Email *</Label>
-                <div className="relative mt-1.5"><Mail className="h-4 w-4 text-slate-400 absolute left-3.5 top-4" />
-                  <Input required type="email" className="pl-10 h-12 rounded-xl" placeholder="you@company.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-                </div>
-              </div>
-              <div><Label className="text-slate-900 font-medium">Phone *</Label>
-                <div className="relative mt-1.5"><Phone className="h-4 w-4 text-slate-400 absolute left-3.5 top-4" />
-                  <Input required type="tel" className="pl-10 h-12 rounded-xl" placeholder="+91 98765 43210" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-                </div>
-                <div className="text-xs text-slate-500 mt-1.5">You&apos;ll be able to sign in with either email or phone.</div>
-              </div>
-            </>}
-            {(mode === 'login' || mode === 'forgot') && (
-              <div><Label className="text-slate-900 font-medium">{mode === 'forgot' ? 'Email address' : 'Email or Phone'}</Label>
-                <div className="relative mt-1.5"><User className="h-4 w-4 text-slate-400 absolute left-3.5 top-4" />
-                  <Input aria-label={mode === 'forgot' ? 'Email address' : 'Email or phone'} autoComplete="username" required type={mode === 'forgot' ? 'email' : 'text'} className="pl-10 h-12 rounded-xl" placeholder={mode === 'forgot' ? 'you@company.com' : 'Email address or phone number'} value={form.identifier} onChange={e => setForm({ ...form, identifier: e.target.value })} />
-                </div>
-              </div>
-            )}
-            {(mode === 'login' || mode === 'signup' || mode === 'reset') && (
-              <div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-slate-900 font-medium">Password{mode === 'signup' && ' *'}</Label>
-                  {mode === 'login' && <button type="button" onClick={() => setMode('forgot')} className="text-xs text-cyan-600 font-semibold hover:underline">Forgot password?</button>}
-                </div>
-                <Input aria-label="Password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? undefined : 8} maxLength={128} type="password" className="mt-1.5 h-12 rounded-xl" placeholder={mode === 'signup' || mode === 'reset' ? 'At least 8 characters' : ''} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
-              </div>
-            )}
-            {mode === 'reset' && <div><Label className="text-slate-900 font-medium">Confirm new password</Label><Input aria-label="Confirm new password" autoComplete="new-password" required minLength={8} type="password" className="mt-1.5 h-12 rounded-xl" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} /></div>}
-            <div className="pt-2">
-              <Button disabled={loading} type="submit" className="btn-servo w-full h-12 rounded-full font-tech uppercase tracking-[0.18em] text-sm">
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : mode === 'reset' ? 'Update Password' : 'Send Reset Instructions'}
-              </Button>
-            </div>
-          </form>}
-          {mode === 'verify' && <div className="text-center py-6 space-y-4">
-            {loading && <Loader2 className="h-8 w-8 animate-spin text-cyan-500 mx-auto" />}
-            {!loading && !actionMessage && !actionError && <Button onClick={confirmEmail} className="btn-servo rounded-full">Verify email address</Button>}
-            {actionMessage && <><CheckCircle2 className="h-10 w-10 text-emerald-600 mx-auto" /><p className="text-sm text-slate-700">{actionMessage}</p><Button onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full bg-slate-900">Continue to sign in</Button></>}
-            {actionError && <><p className="text-sm text-red-600">{actionError}</p><Button variant="outline" onClick={() => { clearAuthAction?.(); setMode('login') }} className="rounded-full">Return to sign in</Button></>}
-          </div>}
-          {['verification-sent','reset-sent'].includes(mode) && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-cyan-100 text-cyan-600 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">{actionMessage}</p><Button variant="outline" onClick={() => setMode('login')} className="rounded-full">Back to sign in</Button></div>}
-          {mode === 'unverified' && <div className="text-center py-6 space-y-4"><div className="inline-flex bg-cyan-100 text-cyan-600 rounded-full p-4"><Mail className="h-8 w-8" /></div><p className="text-sm text-slate-700">Your account must be verified before you can sign in.</p><Input aria-label="Email to verify" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Your email address" className="h-12 rounded-xl" /><Button disabled={loading} onClick={resendVerification} className="btn-servo rounded-full">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend verification email'}</Button></div>}
+function PrivacyPage({ cms }) {
+  const company = cms?.companyName || 'Vijaya Engineering Works'
+  return (
+    <LegalShell eyebrow="Legal" title="Privacy Policy" cms={cms}>
+      <LegalSection title="Who we are">
+        <p>{company} ("we", "us") is a precision gear manufacturer based in Hyderabad, Telangana, India. This policy explains what personal data we collect through this website and how we use it.</p>
+      </LegalSection>
+      <LegalSection title="What we collect">
+        <p><span className="font-semibold text-neutral-900">Contact enquiries.</span> If you use the contact form, your name, email address, and message are composed into an email that you send from your own email app — we receive it as an email enquiry.</p>
+        <p><span className="font-semibold text-neutral-900">Accounts and quote requests.</span> When you create an account or request a quote, we collect your name, email address, company name, phone number, and any drawings, specifications, or other details you upload so we can prepare and manage your quote.</p>
+        <p><span className="font-semibold text-neutral-900">Sign-in data.</span> Authentication is handled by our identity provider, Clerk, which processes your email address and sign-in activity on our behalf.</p>
+      </LegalSection>
+      <LegalSection title="How we use it">
+        <p>We use your data to respond to enquiries, prepare quotations, manage your account and orders, and keep the website secure. We do not sell your personal data and we do not use it for advertising.</p>
+      </LegalSection>
+      <LegalSection title="Who we share it with">
+        <p>We share data only with the service providers needed to run this website — Clerk for authentication, and Google for the on-site AI assistant (your chat messages are processed by Google's Gemini API to generate replies) — and only as required by law. We do not sell your personal data. Drawings and specifications you upload are used solely to quote and manufacture your order.</p>
+      </LegalSection>
+      <LegalSection title="How long we keep it">
+        <p>We keep enquiry and quote records for as long as needed for the business relationship, and account data until you ask us to delete it.</p>
+      </LegalSection>
+      <LegalSection title="Your rights">
+        <p>Under India's Digital Personal Data Protection Act, 2023, you may request access to, correction of, or deletion of your personal data. Write to us using the contact details above and we will respond within a reasonable time.</p>
+      </LegalSection>
+      <LegalSection title="Cookies">
+        <p>This website uses a small number of cookies and similar storage, and nothing else:</p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li><span className="font-semibold text-neutral-900">Authentication cookies</span> (set by Clerk) — keep you signed in. Required for accounts and quote requests.</li>
+          <li><span className="font-semibold text-neutral-900">Admin session cookie</span> — used only for staff administration.</li>
+          <li><span className="font-semibold text-neutral-900">Your cookie choice</span> — stored in your own browser so we don't ask again.</li>
+        </ul>
+        <p>We do not run analytics, advertising, or cross-site tracking cookies.</p>
+      </LegalSection>
+      <LegalSection title="Security">
+        <p>We apply reasonable technical and organisational safeguards to protect your data, but no internet transmission or storage system is completely secure.</p>
+      </LegalSection>
+    </LegalShell>
+  )
+}
 
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center text-sm text-slate-600 space-y-2.5">
-            {mode === 'login' && <div>New to VEW? <button onClick={() => setMode('signup')} className="text-cyan-600 font-semibold hover:underline">Create an account</button></div>}
-            {mode === 'login' && <div><button onClick={() => setMode('unverified')} className="text-slate-500 hover:text-cyan-600 font-medium">Resend verification email</button></div>}
-            {['unverified','reset'].includes(mode) && <div><button onClick={() => { clearAuthAction?.(); setMode('login') }} className="text-cyan-600 font-semibold hover:underline">Back to sign in</button></div>}
-            {mode === 'signup' && <div>Already have an account? <button onClick={() => setMode('login')} className="text-cyan-600 font-semibold hover:underline">Sign in</button></div>}
-            {mode === 'forgot' && <div><button onClick={() => setMode('login')} className="text-cyan-600 font-semibold hover:underline">← Back to sign in</button></div>}
-          </div>
-          <div className="text-center text-xs text-slate-400 mt-8">Protected by password hashing (scrypt). Your credentials are never stored in plain text.</div>
-        </motion.div>
+function TermsPage({ cms }) {
+  const company = cms?.companyName || 'Vijaya Engineering Works'
+  return (
+    <LegalShell eyebrow="Legal" title="Terms & Conditions" cms={cms}>
+      <LegalSection title="Our services">
+        <p>{company} manufactures custom precision gears and related components to order, based on drawings and specifications supplied by the customer.</p>
+      </LegalSection>
+      <LegalSection title="Quotations">
+        <p>All quotations are estimates based on the drawings and information you provide. Prices are valid for 30 days from the date of the quotation unless stated otherwise, and are confirmed before production begins. Any change to drawings or quantities may change the price and lead time.</p>
+      </LegalSection>
+      <LegalSection title="Drawings and intellectual property">
+        <p>By uploading drawings or specifications you confirm you own them or are authorised to share them. We use your drawings only to prepare your quotation and manufacture your order, and we do not disclose them to third parties except as needed to fulfil your order.</p>
+      </LegalSection>
+      <LegalSection title="Orders and payment">
+        <p>An order is confirmed when we accept it in writing. Payment terms are stated on the quotation or invoice. Production begins once any required advance payment is received.</p>
+      </LegalSection>
+      <LegalSection title="Lead times">
+        <p>Delivery dates we give are good-faith estimates based on our current schedule. We will inform you of any expected delay, but dates are not guaranteed unless expressly agreed in writing.</p>
+      </LegalSection>
+      <LegalSection title="Liability">
+        <p>To the maximum extent permitted by law, our liability for any order is limited to the value of that order. We are not liable for indirect, incidental, or consequential losses.</p>
+      </LegalSection>
+      <LegalSection title="Governing law">
+        <p>These terms are governed by the laws of India, and disputes are subject to the courts at Hyderabad, Telangana.</p>
+      </LegalSection>
+    </LegalShell>
+  )
+}
+
+// ============== COOKIE CONSENT ==============
+function CookieBanner({ setRoute }) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    try { if (!window.localStorage.getItem('vew-consent')) setShow(true) }
+    catch (e) { setShow(false) }
+  }, [])
+  if (!show) return null
+  function choose(v) {
+    try { window.localStorage.setItem('vew-consent', v) } catch (e) {}
+    setShow(false)
+  }
+  return (
+    <div className="fixed bottom-0 inset-x-0 z-50 bg-white border-t border-neutral-200" role="region" aria-label="Cookie notice">
+      <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+        <p className="text-sm text-neutral-600 max-w-2xl">
+          We use cookies to keep you signed in and remember your choices — no advertising trackers. Read our{' '}
+          <button onClick={() => setRoute('privacy')} className="underline underline-offset-4 hover:text-neutral-900">Privacy Policy</button>.
+        </p>
+        <div className="flex gap-2 shrink-0">
+          <button onClick={() => choose('declined')} className="rounded-full border border-neutral-300 px-5 h-10 text-sm hover:border-neutral-900">Decline</button>
+          <button onClick={() => choose('accepted')} className="rounded-full bg-neutral-900 text-white px-5 h-10 text-sm hover:bg-neutral-700">Accept</button>
+        </div>
       </div>
+    </div>
+  )
+}
 
-      {/* Welcome modal */}
-      <Dialog open={!!welcome} onOpenChange={o => !o && setWelcome(null)}>
-        <DialogContent className="max-w-sm text-center rounded-3xl">
-          <DialogHeader>
-            <div className="mx-auto mb-3">
-              <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-                className="inline-flex rounded-full p-4 text-white shadow-[0_10px_40px_-10px_rgba(34,211,238,0.6)]" style={{ background: 'linear-gradient(135deg,#a5f3fc,#22d3ee 50%,#0e7490)' }}>
-                <CheckCircle2 className="h-12 w-12" />
-              </motion.div>
-            </div>
-            <div className="font-tech text-[10px] uppercase tracking-[0.3em] text-cyan-600 mb-2">{'// Signed in'}</div>
-            <DialogTitle className="text-center font-display text-3xl tracking-tight">
-              {welcome?.isNew ? `Welcome, ${welcome?.name}!` : `Welcome back, ${welcome?.name}!`}
-            </DialogTitle>
-            <DialogDescription className="text-center pt-2">
-              {welcome?.isNew
-                ? "Your account is ready. Submit RFQs and track every stage of production live."
-                : isStaff(welcome) ? 'Signed in as administrator.' : "You're signed in. Continue to your portal to see all your RFQs and orders."}
-            </DialogDescription>
-          </DialogHeader>
-          <Button onClick={continueAfterWelcome} className="btn-servo w-full rounded-full h-12 mt-2 font-tech uppercase tracking-[0.18em] text-sm">
-            {isStaff(welcome) ? 'Go to Admin Dashboard' : 'Continue to My Portal'} <ArrowRight className="h-4 w-4 ml-1" />
-          </Button>
-        </DialogContent>
-      </Dialog>
+// ============== LOGIN / SIGNUP ==============
+function LoginPage({ setRoute, auth }) {
+  const [mode, setMode] = useState('login')
+  // After Clerk signs the user in, send them to their workspace.
+  useEffect(() => {
+    if (auth.user && !auth.loading) setRoute(isStaff(auth.user) ? 'admin' : 'portal')
+  }, [auth.user, auth.loading, setRoute])
+  return (
+    <div className="bg-white text-neutral-900 min-h-[calc(100vh-4rem)]">
+      <div className="container mx-auto px-4 py-14 md:py-20 flex flex-col items-center">
+        <div className="flex items-center gap-2.5 mb-8">
+          <Cog className="h-9 w-9 text-neutral-900" />
+          <div className="font-display font-bold text-neutral-900 tracking-tight">Vijaya Engineering Works</div>
+        </div>
+        {mode === 'login'
+          ? <SignIn routing="hash" appearance={clerkAppearance} />
+          : <SignUp routing="hash" appearance={clerkAppearance} />}
+        <div className="mt-6 text-sm text-neutral-600">
+          {mode === 'login'
+            ? <>New to VEW? <button onClick={() => setMode('signup')} className="text-neutral-900 font-semibold hover:underline">Create an account</button></>
+            : <>Already have an account? <button onClick={() => setMode('login')} className="text-neutral-900 font-semibold hover:underline">Sign in</button></>}
+        </div>
+        <p className="mt-4 text-xs text-neutral-500 text-center max-w-xs">
+          By signing in or creating an account, you agree to our{' '}
+          <button onClick={() => setRoute('privacy')} className="underline underline-offset-2 hover:text-neutral-900">Privacy Policy</button>{' '}
+          and <button onClick={() => setRoute('terms')} className="underline underline-offset-2 hover:text-neutral-900">Terms & Conditions</button>.
+        </p>
+      </div>
     </div>
   )
 }
@@ -1389,21 +1092,14 @@ function UserManagement({ auth, onImpersonate }) {
   const [query, setQuery] = useState('')
   const userList = usePagedList(`/api/admin/users?q=${encodeURIComponent(query)}`, 'users', auth.user?.id)
   const users = userList.items, load = userList.refresh
-  const [resetTarget, setResetTarget] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
-  const [newPw, setNewPw] = useState('')
 
   async function toggle(u) {
-    if (isStaff(u)) { toast.error("Can't disable admin"); return }
+    if (u.id === auth.user?.id) { toast.error("You can't disable your own account"); return }
+    if (isStaff(u) && auth.user?.role !== 'owner') { toast.error('Only the owner can disable staff accounts'); return }
     const result = await api().patch(`/api/admin/users/${u.id}/toggle`, {}); if (result.error) return
-    toast.success(u.isActive ? 'User disabled' : 'User re-enabled')
+    toast.success(u.isActive ? 'Account disabled' : 'Account re-enabled')
     load()
-  }
-  async function doReset() {
-    if (!newPw || newPw.length < 8) { toast.error('At least 8 characters'); return }
-    const r = await api().post(`/api/admin/users/${resetTarget.id}/reset-password`, { password: newPw })
-    if (r.success) { toast.success('Password reset'); setResetTarget(null); setNewPw('') }
-    else toast.error(r.error)
   }
   async function saveCustomer(e) {
     e.preventDefault()
@@ -1411,10 +1107,11 @@ function UserManagement({ auth, onImpersonate }) {
     if (result.error) return
     toast.success('Customer updated'); setEditTarget(null); load()
   }
-  async function deleteCustomer(u) {
-    if (!window.confirm(`Delete the customer account for ${u.email}? Sign-in will be disabled and RFQ history retained.`)) return
+  async function deleteUser(u) {
+    if (u.id === auth.user?.id) { toast.error("You can't delete your own account"); return }
+    if (!window.confirm(`Delete the account for ${u.email}? Sign-in will be disabled and the account will be removed from this list. RFQ history is retained.`)) return
     const result = await api().delete(`/api/admin/users/${u.id}`)
-    if (!result.error) { toast.success('Customer account removed'); load() }
+    if (!result.error) { toast.success('Account removed'); load() }
   }
   async function impersonate(u) {
     if (isStaff(u)) { toast.error("Can't impersonate another admin"); return }
@@ -1424,6 +1121,31 @@ function UserManagement({ auth, onImpersonate }) {
       onImpersonate && onImpersonate()
     } catch (e) { toast.error(e.message) }
   }
+
+  const userActions = (u, className) => (
+    <div className={className}>
+      {u.role === 'customer' && (
+        <>
+          {auth.user?.role === 'owner' && <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => impersonate(u)} title="Sign in as this customer">
+            <ShieldCheck className="h-3 w-3 mr-1" />View as customer
+          </Button>}
+          <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditTarget(u)}>Edit</Button>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteUser(u)}>Delete</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
+            {u.isActive ? 'Disable' : 'Enable'}
+          </Button>
+        </>
+      )}
+      {u.role !== 'customer' && auth.user?.role === 'owner' && u.id !== auth.user?.id && (
+        <>
+          <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteUser(u)}>Delete</Button>
+          <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
+            {u.isActive ? 'Disable' : 'Enable'}
+          </Button>
+        </>
+      )}
+    </div>
+  )
 
   return (
     <div className="space-y-4">
@@ -1436,8 +1158,8 @@ function UserManagement({ auth, onImpersonate }) {
           <Input className="pl-9" placeholder="Search by name, email, phone, company..." value={query} onChange={e => setQuery(e.target.value)} />
         </div>
       </div>
-      <Card><CardContent className="p-0 overflow-x-auto">
-        <table className="w-full text-sm">
+      <div className="hidden md:block"><Card><CardContent className="p-0 overflow-x-auto">
+        <table className="w-full text-sm min-w-[780px]">
           <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
             <tr>
               <th className="text-left px-4 py-3">User</th>
@@ -1469,46 +1191,38 @@ function UserManagement({ auth, onImpersonate }) {
                 </td>
                 <td className="px-4 py-3 text-slate-600 text-xs">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : 'Never'}</td>
                 <td className="px-4 py-3 text-right">
-                  <div className="inline-flex gap-1">
-                    {u.role === 'customer' && (
-                      <>
-                        {auth.user?.role === 'owner' && <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => impersonate(u)} title="Sign in as this customer">
-                          <ShieldCheck className="h-3 w-3 mr-1" />View as customer
-                        </Button>}
-                        <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => setResetTarget(u)}>
-                          <Pencil className="h-3 w-3 mr-1" />Reset
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setEditTarget(u)}>Edit</Button>
-                        <Button size="sm" variant="destructive" className="h-8 text-xs" onClick={() => deleteCustomer(u)}>Delete</Button>
-                        <Button size="sm" variant="outline" className="h-8 text-xs rounded-full" onClick={() => toggle(u)}>
-                          {u.isActive ? 'Disable' : 'Enable'}
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                  {userActions(u, "inline-flex gap-1")}
                 </td>
               </tr>
             ))}
             {!users.length && !userList.loading && !userList.error && <tr><td colSpan="7" className="p-10 text-center text-slate-500">No users found.</td></tr>}
           </tbody>
         </table>
-      </CardContent></Card>
+      </CardContent></Card></div>
+      <div className="md:hidden space-y-3">
+        {users.map(u => (
+          <Card key={u.id}><CardContent className="p-4 space-y-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-semibold text-slate-900">{u.firstName} {u.lastName}</div>
+                <div className="text-xs text-slate-500">{u.companyName || '—'}</div>
+              </div>
+              <Badge className={u.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}>{u.isActive ? 'Active' : 'Disabled'}</Badge>
+            </div>
+            <div className="text-sm text-slate-700 break-words">{u.email}</div>
+            <div className="text-xs text-slate-500">{u.phone || '—'}</div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+              <Badge className={isStaff(u) ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'}>{u.role}</Badge>
+              <span>{u.rfqCount} RFQs</span>
+              <span>Last login: {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : 'Never'}</span>
+            </div>
+            {userActions(u, "flex flex-wrap gap-2 pt-1")}
+          </CardContent></Card>
+        ))}
+        {!users.length && !userList.loading && !userList.error && <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-500 text-sm">No users found.</div>}
+      </div>
       <ListPager list={userList} label="Users" />
       <Dialog open={!!editTarget} onOpenChange={o => !o && setEditTarget(null)}><DialogContent><DialogHeader><DialogTitle>Edit customer details</DialogTitle></DialogHeader>{editTarget && <form onSubmit={saveCustomer} className="space-y-3">{[['firstName','First name'],['lastName','Last name'],['companyName','Company'],['phone','Phone']].map(([key,label]) => <label key={key} className="block text-sm">{label}<Input value={editTarget[key] || ''} onChange={e => setEditTarget({ ...editTarget, [key]: e.target.value })} /></label>)}<p className="text-sm text-slate-500">Email and staff access cannot be changed here.</p><Button type="submit">Save customer</Button></form>}</DialogContent></Dialog>
-      <Dialog open={!!resetTarget} onOpenChange={o => !o && setResetTarget(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Reset password for {resetTarget?.firstName} {resetTarget?.lastName}</DialogTitle><DialogDescription>Set a temporary customer password and share it securely.</DialogDescription></DialogHeader>
-          <div className="space-y-3 py-3">
-            <div className="text-sm text-slate-600">Set a temporary password and share it securely with the customer.</div>
-            <Label>New Password</Label>
-            <Input type="password" placeholder="At least 8 characters" value={newPw} onChange={e => setNewPw(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setResetTarget(null); setNewPw('') }}>Cancel</Button>
-            <Button onClick={doReset} className="bg-slate-900 hover:bg-slate-800">Reset Password</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
@@ -2208,13 +1922,9 @@ function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search)
-    const verifyToken = params.get('verify')
-    const resetToken = params.get('reset')
     const inviteToken = params.get('invite')
-    if (verifyToken || resetToken || inviteToken) window.history.replaceState({}, '', window.location.pathname)
-    if (verifyToken) { setAuthAction({ type: 'verify', token: verifyToken }); setRoute('login') }
-    else if (resetToken) { setAuthAction({ type: 'reset', token: resetToken }); setRoute('login') }
-    else if (inviteToken) { setAuthAction({ type: 'invite', token: inviteToken }); setRoute('invite') }
+    if (inviteToken) window.history.replaceState({}, '', window.location.pathname)
+    if (inviteToken) { setAuthAction({ type: 'invite', token: inviteToken }); setRoute('invite') }
   }, [])
 
   const clearAuthAction = () => {
@@ -2255,7 +1965,10 @@ function App() {
     setRoute(r)
   }
 
-  if (auth.loading) return <div role="status" className="min-h-screen flex items-center justify-center gap-3"><Loader2 className="h-8 w-8 animate-spin text-cyan-500" />Loading your account…</div>
+  // Public pages render immediately — never block them on the session check.
+  // Only account routes (login, portal, admin, rfq, invite) wait for auth.
+  const isPublicRoute = route === 'home' || route === 'products' || route.startsWith('product:') || route === 'capabilities' || route === 'gallery' || route === 'about' || route === 'contact' || route === 'privacy' || route === 'terms'
+  if (auth.loading && !isPublicRoute) return <div role="status" className="min-h-screen flex items-center justify-center gap-3"><Loader2 className="h-8 w-8 animate-spin text-cyan-500" />Loading your account…</div>
 
   let content
   if (route === 'admin' && !isStaff(auth.user)) content = <LoginPage setRoute={goRoute} auth={auth} />
@@ -2266,9 +1979,11 @@ function App() {
   else if (route === 'capabilities') content = <CapabilitiesPage />
   else if (route === 'gallery') content = <GalleryPage />
   else if (route === 'about') content = <AboutPage cms={cms} />
-  else if (route === 'contact') content = <ContactPage cms={cms} />
+  else if (route === 'contact') content = <ContactPage cms={cms} setRoute={goRoute} />
+  else if (route === 'privacy') content = <PrivacyPage cms={cms} />
+  else if (route === 'terms') content = <TermsPage cms={cms} />
   else if (route === 'rfq') content = <RfqWizard setRoute={goRoute} auth={auth} />
-  else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} authAction={authAction} clearAuthAction={clearAuthAction} />
+  else if (route === 'login') content = <LoginPage setRoute={goRoute} auth={auth} />
   else if (route === 'portal') content = <CustomerPortal auth={auth} setRoute={goRoute} />
   else if (route === 'admin') content = <AdminDashboard auth={auth} cms={cms} reloadCms={loadCms} />
   else content = <HomePage setRoute={goRoute} cms={cms} />
@@ -2281,6 +1996,8 @@ function App() {
       <main id="main-content" className="flex-1 min-w-0" tabIndex={-1}>{content}</main>
       {cmsError && <div role="alert" className="mx-auto max-w-xl px-4 py-4 text-sm text-red-700">Some business details could not be loaded. <button className="underline" onClick={loadCms}>Try again</button></div>}
       <Footer setRoute={goRoute} cms={cms} />
+      <CookieBanner setRoute={goRoute} />
+      {isPublicRoute && <ChatWidget />}
       <Dialog open={signoutOpen} onOpenChange={setSignoutOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

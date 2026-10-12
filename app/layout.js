@@ -1,4 +1,5 @@
 import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google'
+import { ClerkProvider } from '@clerk/nextjs'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import { siteDescription } from '@/lib/site-content.mjs'
@@ -13,14 +14,16 @@ export const metadata = {
   metadataBase: new URL('https://www.vijayaengineeringworks.com'),
   alternates: { canonical: '/' },
   openGraph: { title: 'Vijaya Engineering Works — Custom Gear Manufacturing', description: siteDescription, url: '/', siteName: 'Vijaya Engineering Works', type: 'website' },
-  twitter: { card: 'summary', title: 'Vijaya Engineering Works', description: siteDescription },
+  twitter: { card: 'summary_large_image', title: 'Vijaya Engineering Works', description: siteDescription },
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${inter.variable} ${display.variable} ${tech.variable}`}>
       <body className="font-sans antialiased bg-slate-50 text-slate-900">
-        {children}
+        <ClerkProvider>
+          {children}
+        </ClerkProvider>
         <Toaster position="top-right" richColors />
       </body>
     </html>
