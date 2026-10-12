@@ -3,6 +3,7 @@
 # IDE and editors
 .idea/
 .vscode/
+Splitwise-Clone/
 
 # Dependencies
 node_modules/
