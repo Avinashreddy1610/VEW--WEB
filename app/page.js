@@ -235,45 +235,49 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
     { key: 'about', label: 'About' }, { key: 'contact', label: 'Contact' },
   ]
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-neutral-200">
+    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 transition-all duration-200 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <button onClick={() => setRoute('home')} className="flex items-center gap-2">
-          <Cog className="h-7 w-7 text-neutral-900" strokeWidth={2.2} />
-          <span className="text-left">
-            <span className="block font-bold tracking-tight leading-none text-neutral-900">Vijaya Engineering Works</span>
-            <span className="block text-[10px] uppercase tracking-widest text-neutral-500 leading-none mt-0.5">Precision Gears</span>
-          </span>
+        <button onClick={() => setRoute('home')} className="flex items-center gap-2.5 group text-left cursor-pointer select-none">
+          <div className="h-9 w-9 rounded-lg bg-slate-900 flex items-center justify-center text-cyan-400 group-hover:bg-slate-800 transition-colors shadow-sm">
+            <Cog className="h-5 w-5 group-hover:rotate-45 transition-transform duration-300 ease-emil-out" strokeWidth={2.2} />
+          </div>
+          <div>
+            <span className="block font-bold tracking-tight leading-none text-slate-900 group-hover:text-slate-700 transition-colors">Vijaya Engineering Works</span>
+            <span className="block font-tech text-[10px] tracking-widest text-cyan-700 font-medium uppercase leading-none mt-1">AGMA Q12 · Precision Gears</span>
+          </div>
         </button>
-        <nav className="hidden lg:flex items-center gap-1">
+        <nav className="hidden lg:flex items-center gap-1 bg-slate-100/70 p-1 rounded-full border border-slate-200/60">
           {links.map(l => (
             <button key={l.key} onClick={() => setRoute(l.key)}
-              className={`px-4 py-2 text-sm rounded-full ${route === l.key ? 'bg-neutral-100 text-neutral-900 font-medium' : 'text-neutral-600 hover:text-neutral-900'}`}>{l.label}</button>
+              className={`px-3.5 py-1.5 text-xs tracking-tight rounded-full transition-all duration-150 cursor-pointer select-none ${route === l.key ? 'bg-slate-900 text-white font-semibold shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'}`}>{l.label}</button>
           ))}
         </nav>
         <div className="flex items-center gap-2">
           {user ? (
             <>
-              <Button variant="ghost" size="sm" onClick={() => setRoute(isStaff(user) ? 'admin' : 'portal')} className="hidden sm:inline-flex">
-                <User className="h-4 w-4 mr-1" /> {user.firstName || user.fullName || 'Account'}
+              <Button variant="ghost" size="sm" onClick={() => setRoute(isStaff(user) ? 'admin' : 'portal')} className="hidden sm:inline-flex text-xs">
+                <User className="h-3.5 w-3.5 mr-1 text-cyan-600" /> {user.firstName || user.fullName || 'Account'}
               </Button>
-              <Button aria-label="Sign out" variant="ghost" size="sm" onClick={onLogout}><LogOut className="h-4 w-4" /></Button>
+              <Button aria-label="Sign out" variant="ghost" size="sm" onClick={onLogout}><LogOut className="h-4 w-4 text-slate-600" /></Button>
             </>
           ) : (
-            <Button variant="ghost" size="sm" onClick={() => setRoute('login')} className="hidden sm:inline-flex"><LogIn className="h-4 w-4 mr-1" /> Sign In</Button>
+            <Button variant="ghost" size="sm" onClick={() => setRoute('login')} className="hidden sm:inline-flex text-xs"><LogIn className="h-3.5 w-3.5 mr-1" /> Sign In</Button>
           )}
-          <Button onClick={() => setRoute('rfq')} className="hidden sm:inline-flex rounded-full bg-neutral-900 text-white hover:bg-neutral-700 h-10 px-6 text-sm">Request a Quote</Button>
-          <button aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} aria-controls="mobile-menu" className="lg:hidden p-2" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
+          <Button onClick={() => setRoute('rfq')} className="hidden sm:inline-flex rounded-full bg-slate-900 text-white hover:bg-slate-800 h-9 px-5 text-xs font-semibold tracking-wide uppercase shadow-sm">
+            Request a Quote <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+          </Button>
+          <button aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} aria-controls="mobile-menu" className="lg:hidden p-2 rounded-md hover:bg-slate-100" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
         </div>
       </div>
       {mobileOpen && (
-        <div id="mobile-menu" className="lg:hidden border-t border-neutral-200 bg-white">
+        <div id="mobile-menu" className="lg:hidden border-t border-slate-200 bg-white/95 backdrop-blur-md">
           <div className="container mx-auto px-4 py-3 flex flex-col gap-1">
-            {links.map(l => <button key={l.key} onClick={() => { setRoute(l.key); setMobileOpen(false) }} className={`px-3 py-2 text-left rounded-md ${route === l.key ? 'bg-neutral-100 font-medium' : 'text-neutral-600'}`}>{l.label}</button>)}
+            {links.map(l => <button key={l.key} onClick={() => { setRoute(l.key); setMobileOpen(false) }} className={`px-3 py-2 text-left rounded-lg text-sm ${route === l.key ? 'bg-slate-900 text-white font-medium' : 'text-slate-700 hover:bg-slate-100'}`}>{l.label}</button>)}
             {user ? <>
-              <button onClick={() => { setRoute(isStaff(user) ? 'admin' : 'portal'); setMobileOpen(false) }} className="px-3 py-2 text-left text-neutral-600">My Account</button>
-              <button onClick={onLogout} className="px-3 py-2 text-left text-neutral-600">Sign Out</button>
-            </> : <button onClick={() => { setRoute('login'); setMobileOpen(false) }} className="px-3 py-2 text-left text-neutral-600">Sign In</button>}
-            <Button onClick={() => { setRoute('rfq'); setMobileOpen(false) }} className="rounded-full bg-neutral-900 text-white mt-2">Request a Quote</Button>
+              <button onClick={() => { setRoute(isStaff(user) ? 'admin' : 'portal'); setMobileOpen(false) }} className="px-3 py-2 text-left text-sm text-slate-700">My Account</button>
+              <button onClick={onLogout} className="px-3 py-2 text-left text-sm text-slate-700">Sign Out</button>
+            </> : <button onClick={() => { setRoute('login'); setMobileOpen(false) }} className="px-3 py-2 text-left text-sm text-slate-700">Sign In</button>}
+            <Button onClick={() => { setRoute('rfq'); setMobileOpen(false) }} className="rounded-full bg-slate-900 text-white mt-2 h-10">Request a Quote</Button>
           </div>
         </div>
       )}
@@ -283,98 +287,208 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
 
 function Footer({ setRoute, cms }) {
   return (
-    <footer className="bg-neutral-100 text-neutral-600 border-t border-neutral-200">
-      <div className="container mx-auto px-4 py-14 grid md:grid-cols-5 gap-8">
-        <div>
-          <div className="flex items-center gap-2 mb-3"><Cog className="h-6 w-6 text-neutral-900" /><div className="text-neutral-900 font-bold">{cms?.companyName || 'Vijaya Engineering Works'}</div></div>
-          <p className="text-sm">Custom precision gear manufacturing from your drawings and specifications.</p>
+    <footer className="bg-slate-950 text-slate-400 border-t border-slate-900">
+      <div className="container mx-auto px-4 py-16 grid md:grid-cols-5 gap-10">
+        <div className="space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center text-cyan-400 border border-slate-800">
+              <Cog className="h-5 w-5" strokeWidth={2.2} />
+            </div>
+            <div className="text-white font-bold tracking-tight text-base">{cms?.companyName || 'Vijaya Engineering Works'}</div>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+            Specialized precision gear cutting, grinding, and CNC machining. Custom manufactured from your CAD models and drawing specifications.
+          </p>
+          <div className="inline-flex items-center gap-1.5 font-tech text-[11px] text-cyan-400/90 bg-slate-900 px-2.5 py-1 rounded border border-slate-800">
+            <ShieldCheck className="h-3.5 w-3.5" /> AGMA Q12 & DIN 4 Standards
+          </div>
         </div>
         <div>
-          <div className="text-neutral-900 font-semibold mb-3">Products</div>
-          <ul className="space-y-2 text-sm">{PRODUCTS.map(p => <li key={p.key}><button onClick={() => setRoute('product:' + p.key)} className="hover:text-neutral-900">{p.title}</button></li>)}</ul>
-        </div>
-        <div>
-          <div className="text-neutral-900 font-semibold mb-3">Company</div>
-          <ul className="space-y-2 text-sm">
-            <li><button onClick={() => setRoute('about')} className="hover:text-neutral-900">About</button></li>
-            <li><button onClick={() => setRoute('capabilities')} className="hover:text-neutral-900">Capabilities</button></li>
-            <li><button onClick={() => setRoute('gallery')} className="hover:text-neutral-900">Gallery</button></li>
-            <li><button onClick={() => setRoute('contact')} className="hover:text-neutral-900">Contact</button></li>
+          <div className="text-white font-semibold text-xs uppercase tracking-wider mb-4 font-tech">Gear Products</div>
+          <ul className="space-y-2.5 text-xs sm:text-sm">
+            {PRODUCTS.map(p => (
+              <li key={p.key}>
+                <button onClick={() => setRoute('product:' + p.key)} className="hover:text-cyan-400 transition-colors text-left cursor-pointer">
+                  {p.title}
+                </button>
+              </li>
+            ))}
           </ul>
         </div>
         <div>
-          <div className="text-neutral-900 font-semibold mb-3">Legal</div>
-          <ul className="space-y-2 text-sm">
-            <li><button onClick={() => setRoute('privacy')} className="hover:text-neutral-900">Privacy Policy</button></li>
-            <li><button onClick={() => setRoute('terms')} className="hover:text-neutral-900">Terms & Conditions</button></li>
+          <div className="text-white font-semibold text-xs uppercase tracking-wider mb-4 font-tech">Facility & Specs</div>
+          <ul className="space-y-2.5 text-xs sm:text-sm">
+            <li><button onClick={() => setRoute('capabilities')} className="hover:text-cyan-400 transition-colors cursor-pointer">Capabilities & Tolerances</button></li>
+            <li><button onClick={() => setRoute('gallery')} className="hover:text-cyan-400 transition-colors cursor-pointer">Machining Gallery</button></li>
+            <li><button onClick={() => setRoute('about')} className="hover:text-cyan-400 transition-colors cursor-pointer">About Our Workshop</button></li>
+            <li><button onClick={() => setRoute('rfq')} className="hover:text-cyan-400 transition-colors cursor-pointer text-cyan-400 font-medium">Request Quote (RFQ)</button></li>
+            <li><button onClick={() => setRoute('contact')} className="hover:text-cyan-400 transition-colors cursor-pointer">Plant Location & Contact</button></li>
           </ul>
         </div>
         <div>
-          <div className="text-neutral-900 font-semibold mb-3">Contact</div>
-          <ul className="space-y-2 text-sm">
-            {cms?.phone && <li className="flex items-start gap-2"><Phone className="h-4 w-4 mt-0.5 shrink-0" /><a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:text-neutral-900">{cms.phone}</a></li>}
-            {cms?.email && <li className="flex items-start gap-2"><Mail className="h-4 w-4 mt-0.5 shrink-0" /><a href={`mailto:${cms.email}`} className="break-all hover:text-neutral-900">{cms.email}</a></li>}
-            {cms?.address && <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 shrink-0" />{cms.address}</li>}
-            <li className="flex items-start gap-2"><Globe2 className="h-4 w-4 mt-0.5 shrink-0" /><a href={COMPANY_URL} className="break-all hover:text-neutral-900">vijayaengineeringworks.com</a></li>
+          <div className="text-white font-semibold text-xs uppercase tracking-wider mb-4 font-tech">Legal</div>
+          <ul className="space-y-2.5 text-xs sm:text-sm">
+            <li><button onClick={() => setRoute('privacy')} className="hover:text-cyan-400 transition-colors cursor-pointer">Privacy Policy</button></li>
+            <li><button onClick={() => setRoute('terms')} className="hover:text-cyan-400 transition-colors cursor-pointer">Terms & Conditions</button></li>
+          </ul>
+        </div>
+        <div>
+          <div className="text-white font-semibold text-xs uppercase tracking-wider mb-4 font-tech">Plant Office</div>
+          <ul className="space-y-3 text-xs sm:text-sm">
+            {cms?.phone && (
+              <li className="flex items-center gap-2.5">
+                <Phone className="h-4 w-4 text-cyan-400 shrink-0" />
+                <a href={`tel:${cms.phone.replace(/[^+\d]/g, '')}`} className="hover:text-white transition-colors">{cms.phone}</a>
+              </li>
+            )}
+            {cms?.email && (
+              <li className="flex items-center gap-2.5">
+                <Mail className="h-4 w-4 text-cyan-400 shrink-0" />
+                <a href={`mailto:${cms.email}`} className="break-all hover:text-white transition-colors">{cms.email}</a>
+              </li>
+            )}
+            {cms?.address && (
+              <li className="flex items-start gap-2.5">
+                <MapPin className="h-4 w-4 text-cyan-400 mt-0.5 shrink-0" />
+                <span className="leading-snug">{cms.address}</span>
+              </li>
+            )}
+            <li className="flex items-start gap-2.5 pt-1">
+              <Globe2 className="h-4 w-4 text-cyan-400 shrink-0 mt-0.5" />
+              <a href={COMPANY_MAPS_URL} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline font-tech text-xs">
+                View on Google Maps →
+              </a>
+            </li>
           </ul>
         </div>
       </div>
-      <div className="border-t border-neutral-200 py-4 text-center text-xs">© {new Date().getFullYear()} {cms?.companyName || 'Vijaya Engineering Works'}. All rights reserved.</div>
+      <div className="border-t border-slate-900 py-6 text-center text-xs text-slate-500 font-tech">
+        <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>© {new Date().getFullYear()} {cms?.companyName || 'Vijaya Engineering Works'}. All rights reserved.</span>
+          <span className="text-[11px] text-slate-600">Precision Gears · Hyderabad, Telangana · 17.5126° N, 78.4642° E</span>
+        </div>
+      </div>
     </footer>
   )
 }
 
-// ============== HOME (simple, no animation) ==============
+// ============== HOME (Precision Engineering UI) ==============
 function HomePage({ setRoute, cms }) {
   return (
-    <div className="bg-white text-neutral-900">
-      {/* HERO */}
-      <section className="container mx-auto px-4 pt-14 pb-12 md:pt-20 md:pb-16">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500 mb-4">Vijaya Engineering Works · Precision gear manufacturing</p>
-        <h1 className="font-display font-bold tracking-tight leading-[0.95] text-5xl md:text-7xl max-w-4xl">
-          Gears cut to perfection.
-        </h1>
-        <p className="mt-5 text-lg text-neutral-600 max-w-xl">
-          Spiral bevel, helical and spur gears — plus complete gear sets — machined from your drawings and inspected to AGMA Q12.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Button size="lg" onClick={() => setRoute('rfq')} className="rounded-full bg-neutral-900 text-white hover:bg-neutral-700 h-12 px-8">
-            Request a Quote <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-          <Button size="lg" variant="outline" onClick={() => setRoute('products')} className="rounded-full h-12 px-8">
-            Browse Products
-          </Button>
-        </div>
-        <div className="mt-10 rounded-2xl overflow-hidden bg-neutral-100">
-          <Image src={HERO_IMG} alt="Vijaya Engineering Works workshop" width={1600} height={900} className="w-full h-auto" priority />
-        </div>
-        <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-6 border-t border-neutral-200 pt-8">
-          {[['30+', 'Years of precision'], ['Q12', 'AGMA quality grade'], ['1200 mm', 'Max OD capacity'], ['±0.002 mm', 'Tolerance']].map(([v, l]) => (
-            <div key={l}>
-              <div className="font-display text-3xl md:text-4xl font-bold">{v}</div>
-              <div className="text-sm text-neutral-500 mt-1">{l}</div>
+    <div className="bg-white text-slate-900 selection:bg-cyan-500/30 selection:text-slate-900">
+      {/* HERO SECTION */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-50/50 border-b border-slate-200/80 bg-grid-subtle pt-12 pb-14 md:pt-20 md:pb-20">
+        <div className="container mx-auto px-4">
+          <div className="grid lg:grid-cols-12 gap-10 lg:gap-8 items-center">
+            
+            {/* Left Column: Technical Narrative & Actions */}
+            <div className="lg:col-span-7 flex flex-col items-start">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 text-cyan-400 font-tech text-xs tracking-wider uppercase mb-5 border border-slate-800 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                AGMA Q12 Certified · Est. 1990 · Hyderabad, India
+              </div>
+              
+              <h1 className="font-display font-bold tracking-tight text-4xl sm:text-6xl lg:text-7xl leading-[1.02] text-slate-950">
+                Gears cut to <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-950 via-slate-800 to-cyan-700">sub-micron</span> perfection.
+              </h1>
+              
+              <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-xl leading-relaxed">
+                Spiral bevel, helical, and spur gears — plus custom matched gear sets — precision-machined from your drawings and verified to AGMA Q12 / DIN 4 quality standards.
+              </p>
+              
+              <div className="mt-8 flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <Button size="lg" onClick={() => setRoute('rfq')} className="rounded-full bg-slate-900 text-white hover:bg-slate-800 h-12 px-7 text-xs font-semibold uppercase tracking-wider shadow-md shadow-slate-900/15">
+                  Request a Quote <ArrowRight className="ml-2 h-4 w-4 text-cyan-400" />
+                </Button>
+                <Button size="lg" variant="outline" onClick={() => setRoute('products')} className="rounded-full h-12 px-7 text-xs font-semibold uppercase tracking-wider border-slate-300 text-slate-800 hover:bg-slate-100 hover:text-slate-950">
+                  Explore Products
+                </Button>
+              </div>
+
+              {/* Technical Specifications Bar */}
+              <div className="mt-9 pt-6 border-t border-slate-200/90 w-full flex flex-wrap items-center gap-y-2 gap-x-6 text-xs font-tech text-slate-500">
+                <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-cyan-600" /> ISO / AGMA Standards</span>
+                <span className="flex items-center gap-1.5"><Cog className="h-4 w-4 text-cyan-600" /> Gleason & Klingelnberg</span>
+                <span className="flex items-center gap-1.5"><Ruler className="h-4 w-4 text-cyan-600" /> CMM Verified Reports</span>
+              </div>
             </div>
-          ))}
+
+            {/* Right Column: CAD / Workshop Showcase Viewport */}
+            <div className="lg:col-span-5">
+              <div className="relative rounded-2xl bg-slate-950 p-2 shadow-2xl border border-slate-800/80 group">
+                {/* Viewport Header Bar */}
+                <div className="flex items-center justify-between px-3 py-2 text-[11px] font-tech text-slate-400 border-b border-slate-800/80">
+                  <span className="flex items-center gap-1.5 text-cyan-400">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400/80" /> CNC SHOP FLOOR
+                  </span>
+                  <span className="tracking-widest">VEW-PRECISION-01</span>
+                </div>
+                {/* Visual Asset Container */}
+                <div className="relative rounded-xl overflow-hidden aspect-[4/3] bg-slate-900">
+                  <Image src={HERO_IMG} alt="Vijaya Engineering Works workshop floor" width={1200} height={900} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-emil-out" priority />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
+                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs font-tech bg-slate-950/80 backdrop-blur-md px-3 py-2 rounded-lg border border-white/10">
+                    <span className="font-medium text-slate-200">Heavy Gear Hobbing</span>
+                    <span className="text-cyan-400">±0.002 mm TOL</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* METRICS BENTO STRIP */}
+          <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { val: '30+', label: 'Years Precision Tooling', detail: 'Serving tier-1 industrial OEMs' },
+              { val: 'Q12', label: 'AGMA Quality Grade', detail: 'DIN 4 precision profile form' },
+              { val: '1200 mm', label: 'Max OD Capacity', detail: 'Up to module 25 capacity' },
+              { val: '±0.002 mm', label: 'Tolerance Standard', detail: 'Sub-micron coordinate inspection' }
+            ].map(m => (
+              <div key={m.label} className="bg-white/80 backdrop-blur-xs rounded-xl p-5 border border-slate-200/90 hover:border-slate-300 hover:shadow-xs transition-all duration-200 group">
+                <div className="font-tech text-3xl md:text-4xl font-bold tracking-tight text-slate-900 group-hover:text-cyan-700 transition-colors">{m.val}</div>
+                <div className="text-xs font-semibold text-slate-800 uppercase tracking-wider mt-1">{m.label}</div>
+                <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">{m.detail}</div>
+              </div>
+            ))}
+          </div>
+
         </div>
       </section>
 
-      {/* PRODUCTS */}
-      <section className="bg-neutral-100 py-16 md:py-20">
+      {/* PRODUCTS SECTION */}
+      <section className="bg-slate-50/70 py-16 md:py-24 border-b border-slate-200/80">
         <div className="container mx-auto px-4">
-          <div className="flex items-end justify-between mb-8">
-            <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight">Our products</h2>
-            <button onClick={() => setRoute('products')} className="text-sm font-medium underline underline-offset-4">View all</button>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10 gap-4">
+            <div>
+              <div className="font-tech text-xs uppercase tracking-widest text-cyan-700 font-semibold mb-2">Engineered Catalogs</div>
+              <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight text-slate-950">Precision Gear Products</h2>
+            </div>
+            <button onClick={() => setRoute('products')} className="text-xs font-semibold uppercase tracking-wider text-slate-800 hover:text-cyan-700 inline-flex items-center gap-1.5 transition-colors cursor-pointer select-none">
+              View Complete Catalog <ArrowRight className="h-3.5 w-3.5" />
+            </button>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {PRODUCTS.map(p => (
-              <button key={p.key} onClick={() => setRoute('product:' + p.key)} className="text-left bg-white rounded-2xl overflow-hidden border border-neutral-200">
-                <div className="aspect-[4/3] bg-neutral-200 overflow-hidden">
-                  <Image src={p.img} alt={p.title} width={800} height={600} className="w-full h-full object-cover" loading="lazy" />
+              <button key={p.key} onClick={() => setRoute('product:' + p.key)} className="group text-left bg-white rounded-2xl overflow-hidden border border-slate-200/90 hover:border-slate-300 hover:shadow-md transition-all duration-200 cursor-pointer select-none flex flex-col">
+                <div className="aspect-[4/3] bg-slate-100 overflow-hidden relative">
+                  <Image src={p.img} alt={p.title} width={800} height={600} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-emil-out" loading="lazy" />
+                  <div className="absolute top-3 left-3 bg-slate-950/80 backdrop-blur-xs text-white text-[10px] font-tech font-medium px-2.5 py-1 rounded-md uppercase tracking-wider">
+                    Custom Machined
+                  </div>
                 </div>
-                <div className="p-5">
-                  <h3 className="font-display font-bold text-xl">{p.title}</h3>
-                  <p className="text-sm text-neutral-500 mt-1">{cms?.productDescriptions?.[p.key] || p.apps.slice(0, 3).join(' · ')}</p>
-                  <span className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium">Explore <ArrowRight className="h-4 w-4" /></span>
+                <div className="p-6 flex-1 flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-display font-bold text-xl text-slate-950 group-hover:text-cyan-700 transition-colors">{p.title}</h3>
+                    <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed">{cms?.productDescriptions?.[p.key] || p.apps.slice(0, 3).join(' · ')}</p>
+                  </div>
+                  <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="font-tech text-[11px] text-slate-500 font-medium">AGMA Q10–Q12</span>
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-900 group-hover:text-cyan-700 transition-colors">
+                      Specifications <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                    </span>
+                  </div>
                 </div>
               </button>
             ))}
@@ -382,63 +496,112 @@ function HomePage({ setRoute, cms }) {
         </div>
       </section>
 
-      {/* CAPABILITIES */}
-      <section className="py-16 md:py-20">
+      {/* CAPABILITIES SECTION */}
+      <section className="py-16 md:py-24 bg-white border-b border-slate-200/80">
         <div className="container mx-auto px-4">
-          <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight mb-8">What we do</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-neutral-200 border border-neutral-200 rounded-2xl overflow-hidden">
-            {CAPABILITIES.map(c => (
-              <div key={c.title} className="bg-white p-6">
-                <c.icon className="h-7 w-7 mb-4" />
-                <h3 className="font-semibold text-lg">{c.title}</h3>
-                <p className="text-sm text-neutral-500 mt-1">{c.desc}</p>
+          <div className="max-w-2xl mb-12">
+            <div className="font-tech text-xs uppercase tracking-widest text-cyan-700 font-semibold mb-2">Manufacturing Excellence</div>
+            <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight text-slate-950">Shop Floor Capabilities</h2>
+            <p className="text-slate-600 text-sm sm:text-base mt-3 leading-relaxed">
+              From heavy hobbing up to 1200 mm OD to sub-micron form grinding and ISO-compliant metrology reports.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {CAPABILITIES.map((c) => (
+              <div key={c.title} className="p-6 rounded-2xl border border-slate-200/80 hover:border-slate-300 hover:shadow-xs transition-all duration-200 bg-slate-50/50 group">
+                <div className="h-11 w-11 rounded-xl bg-slate-900 text-cyan-400 flex items-center justify-center mb-5 group-hover:bg-cyan-600 group-hover:text-white transition-colors shadow-xs">
+                  <c.icon className="h-5 w-5" strokeWidth={2} />
+                </div>
+                <h3 className="font-display font-semibold text-lg text-slate-950">{c.title}</h3>
+                <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">{c.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* PROCESS */}
-      <section className="bg-neutral-900 text-white py-16 md:py-20">
+      {/* PROCESS SECTION */}
+      <section className="bg-slate-950 text-white py-16 md:py-24 border-b border-slate-900 bg-grid-dark">
         <div className="container mx-auto px-4">
-          <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight mb-2">From drawing to dispatch</h2>
-          <p className="text-neutral-400 mb-10">Ten tracked stages. Follow your order live from the customer portal.</p>
-          <ol className="grid sm:grid-cols-2 lg:grid-cols-5 gap-px bg-neutral-700 rounded-2xl overflow-hidden border border-neutral-700">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
+            <div>
+              <div className="font-tech text-xs uppercase tracking-widest text-cyan-400 font-semibold mb-2">Quality Tracking</div>
+              <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight text-white">From Drawing to Dispatch</h2>
+            </div>
+            <p className="text-slate-400 text-xs sm:text-sm max-w-md">
+              Ten strictly monitored production stages. Follow component machining progress in real time via our customer portal.
+            </p>
+          </div>
+
+          <ol className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {PRODUCTION_STAGES.map((s, i) => (
-              <li key={s.name} className="bg-neutral-900 p-5">
-                <div className="text-xs text-neutral-500 mb-2">{String(i + 1).padStart(2, '0')}</div>
-                <div className="font-medium">{s.name}</div>
+              <li key={s.name} className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl flex flex-col justify-between hover:border-cyan-500/50 transition-colors">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-tech text-xs text-cyan-400 font-semibold">{String(i + 1).padStart(2, '0')}</span>
+                  <s.icon className="h-4 w-4 text-slate-500" />
+                </div>
+                <div className="font-medium text-xs sm:text-sm text-slate-200">{s.name}</div>
               </li>
             ))}
           </ol>
         </div>
       </section>
 
-      {/* GALLERY */}
-      <section className="py-16 md:py-20">
+      {/* INSIDE THE SHOP (GALLERY) */}
+      <section className="py-16 md:py-24 bg-white border-b border-slate-200/80">
         <div className="container mx-auto px-4">
-          <div className="flex items-end justify-between mb-8">
-            <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight">Inside the shop</h2>
-            <button onClick={() => setRoute('gallery')} className="text-sm font-medium underline underline-offset-4">Open gallery</button>
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-10 gap-4">
+            <div>
+              <div className="font-tech text-xs uppercase tracking-widest text-cyan-700 font-semibold mb-2">Machining Portfolio</div>
+              <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight text-slate-950">Inside Our Facility</h2>
+            </div>
+            <button onClick={() => setRoute('gallery')} className="text-xs font-semibold uppercase tracking-wider text-slate-800 hover:text-cyan-700 inline-flex items-center gap-1.5 transition-colors cursor-pointer select-none">
+              View All Photos ({GALLERY.length}) <ArrowRight className="h-3.5 w-3.5" />
+            </button>
           </div>
+
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {GALLERY.slice(0, 8).map(g => (
-              <button key={g.src} onClick={() => setRoute('gallery')} className="rounded-xl overflow-hidden bg-neutral-100 aspect-[4/3]">
-                <Image src={g.src} alt={g.alt} width={600} height={450} className="w-full h-full object-cover" loading="lazy" />
+              <button key={g.src} onClick={() => setRoute('gallery')} className="group rounded-xl overflow-hidden bg-slate-100 aspect-[4/3] relative border border-slate-200/80 cursor-pointer select-none">
+                <Image src={g.src} alt={g.alt} width={600} height={450} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-emil-out" loading="lazy" />
+                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-end p-3">
+                  <span className="text-white text-[11px] font-tech font-medium tracking-tight bg-slate-950/80 backdrop-blur-xs px-2.5 py-1 rounded">
+                    {g.caption}
+                  </span>
+                </div>
               </button>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="bg-neutral-900 text-white">
-        <div className="container mx-auto px-4 py-16 md:py-24 text-center">
-          <h2 className="font-display text-4xl md:text-6xl font-bold tracking-tight">Send us your gear drawing.</h2>
-          <p className="text-neutral-400 mt-4 max-w-xl mx-auto">Upload PDF, STEP, DXF, DWG, JPG or PNG. We&apos;ll review it on the shop floor and reply with a detailed quote.</p>
-          <Button size="lg" onClick={() => setRoute('rfq')} className="mt-8 rounded-full bg-white text-neutral-900 hover:bg-neutral-200 h-12 px-8">
-            Start your RFQ <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
+      {/* CTA SECTION */}
+      <section className="bg-slate-950 text-white relative overflow-hidden bg-grid-dark">
+        <div className="container mx-auto px-4 py-16 md:py-24 text-center relative z-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 text-cyan-400 font-tech text-xs tracking-wider uppercase mb-5 border border-slate-800">
+            Rapid Turnaround · NDA Protected
+          </div>
+          <h2 className="font-display text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight text-white max-w-3xl mx-auto">
+            Send us your gear drawings for a detailed quote.
+          </h2>
+          <p className="text-slate-400 mt-4 max-w-xl mx-auto text-sm sm:text-base leading-relaxed">
+            Upload CAD files in STEP, DXF, DWG, IGES, or PDF format. Our tooling engineers review specifications and respond with machining quotes promptly.
+          </p>
+
+          <div className="mt-6 flex flex-wrap justify-center gap-2 font-tech text-xs text-slate-400">
+            {['STEP / STP', 'DXF', 'DWG', 'IGES', 'PDF'].map(fmt => (
+              <span key={fmt} className="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-slate-300">
+                {fmt}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-8 flex justify-center">
+            <Button size="lg" onClick={() => setRoute('rfq')} className="rounded-full bg-cyan-400 text-slate-950 hover:bg-cyan-300 h-12 px-8 text-xs font-bold uppercase tracking-wider shadow-lg shadow-cyan-400/20">
+              Start RFQ Wizard <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </section>
     </div>
@@ -468,8 +631,8 @@ function ProductionTracker({ stages, canEdit, onUpdate }) {
             const isHold = s.status === 'HOLD'
             return (
               <div key={s.id} className="relative flex flex-col items-center gap-2 z-10 flex-1">
-                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: i * 0.05, type: 'spring', stiffness: 200 }}
-                  className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all
+                <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: i * 0.04, type: 'spring', stiffness: 260, damping: 20 }}
+                  className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-200
                     ${isDone ? 'bg-emerald-500 border-emerald-500 text-white' :
                       isActive ? 'bg-cyan-400 border-cyan-400 text-slate-900 shadow-lg shadow-cyan-500/40' :
                       isHold ? 'bg-amber-100 border-amber-400 text-amber-700' :

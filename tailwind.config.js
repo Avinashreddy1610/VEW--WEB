@@ -94,6 +94,11 @@ module.exports = {
             }
           }
         },
+        transitionTimingFunction: {
+          'emil-out': 'cubic-bezier(0.23, 1, 0.32, 1)',
+          'emil-in-out': 'cubic-bezier(0.77, 0, 0.175, 1)',
+          'emil-drawer': 'cubic-bezier(0.32, 0.72, 0, 1)'
+        },
         animation: {
           'accordion-down': 'accordion-down 0.2s ease-out',
           'accordion-up': 'accordion-up 0.2s ease-out'
