@@ -33,6 +33,10 @@ const clerkAppearance = {
     socialButtonsBlockButton: 'rounded-full h-12 border-neutral-300',
     formFieldInput: 'rounded-xl h-12',
     footerActionLink: 'text-neutral-900 font-semibold',
+    // Hide Clerk's own "Don't have an account? Sign up" link inside the card:
+    // it points at Clerk's hosted account portal by default. VEW renders its
+    // own Sign in / Create an account toggle below the card instead.
+    footerAction: { display: 'none' },
   },
 }
 import {
