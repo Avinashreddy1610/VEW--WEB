@@ -292,8 +292,8 @@ function Nav({ route, setRoute, mobileOpen, setMobileOpen, user, onLogout }) {
 function Footer({ setRoute, cms }) {
   return (
     <footer className="bg-slate-950 text-slate-400 border-t border-slate-900">
-      <div className="container mx-auto px-4 py-16 grid md:grid-cols-5 gap-10">
-        <div className="space-y-4">
+      <div className="container mx-auto px-4 py-16 grid grid-cols-2 md:grid-cols-5 gap-10">
+        <div className="col-span-2 md:col-span-1 space-y-4">
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-lg bg-slate-900 flex items-center justify-center text-cyan-400 border border-slate-800">
               <Cog className="h-5 w-5" strokeWidth={2.2} />
@@ -336,7 +336,7 @@ function Footer({ setRoute, cms }) {
             <li><button onClick={() => setRoute('terms')} className="hover:text-cyan-400 transition-colors cursor-pointer">Terms & Conditions</button></li>
           </ul>
         </div>
-        <div>
+        <div className="col-span-2 md:col-span-1">
           <div className="text-white font-semibold text-xs uppercase tracking-wider mb-4 font-tech">Plant Office</div>
           <ul className="space-y-3 text-xs sm:text-sm">
             {cms?.phone && (
@@ -369,7 +369,13 @@ function Footer({ setRoute, cms }) {
       <div className="border-t border-slate-900 py-6 text-center text-xs text-slate-500 font-tech">
         <div className="container mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>© {new Date().getFullYear()} {cms?.companyName || 'Vijaya Engineering Works'}. All rights reserved.</span>
-          <span className="text-[11px] text-slate-600">Precision Gears · Hyderabad, Telangana · 17.5126° N, 78.4642° E</span>
+          <div className="flex items-center gap-3 text-[11px] text-slate-500">
+            <button onClick={() => setRoute('privacy')} className="hover:text-cyan-400 transition-colors cursor-pointer">Privacy</button>
+            <span>·</span>
+            <button onClick={() => setRoute('terms')} className="hover:text-cyan-400 transition-colors cursor-pointer">Terms</button>
+            <span>·</span>
+            <span className="text-slate-600">Precision Gears · Hyderabad, Telangana · 17.5126° N, 78.4642° E</span>
+          </div>
         </div>
       </div>
     </footer>
